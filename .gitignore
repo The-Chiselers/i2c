@@ -1,0 +1,59 @@
+# scala-cli, bloop, metals
+.bsp/
+.bloop/
+.metals/
+.scala-build/
+project/metals.sbt
+build.sc
+
+# scala 3
+.tasty
+
+# sbt
+project/project/
+project/target/
+target/
+
+# eclipse
+build/
+.classpath
+.project
+.settings
+.worksheet
+bin/
+.cache
+
+# intellij idea
+*.log
+*.iml
+*.ipr
+*.iws
+.idea
+
+# MacOS
+.DS_Store
+
+# other?
+.history
+.scala_dependencies
+.cache-main
+
+# general
+*.class
+
+# build output
+out
+generated
+*.anno.json
+build.properties
+test_run_dir
+
+# LaTeX
+*.aux
+*.toc
+*.out
+*.log
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.pdf

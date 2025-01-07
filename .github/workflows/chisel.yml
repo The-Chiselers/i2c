@@ -1,0 +1,47 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: Chisel CI
+ 
+on:
+  push:
+    branches: [ "main", "nick" ]
+  pull_request:
+    branches: [ "main" ]
+
+
+permissions:
+  contents: read
+
+jobs:
+  generate_verilog:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v27
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+        
+    - name: Run Nix Cache
+      uses: DeterminateSystems/magic-nix-cache-action@v2
+      
+    # - name: Source Dev Shell
+    #   run: nix --extra-experimental-features nix-command --extra-experimental-features flakes develop --ignore-environment -c $SHELL
+
+    # - name: Install firtool
+    #   run: nix-env -iA nixpkgs.firtool
+      
+    # - name: DEBUG STEP
+    #   run: echo $PATH; which firtool
+
+     
+    # - uses: nicknovitski/nix-develop@1
+    # - run: echo $PATH
+
+    - name: Run
+      run: nix develop --command sbt run
