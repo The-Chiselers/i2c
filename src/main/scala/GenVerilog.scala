@@ -2,7 +2,7 @@
 //> using dep "org.chipsalliance::chisel:6.5.0"
 //> using plugin "org.chipsalliance:::chisel-plugin:6.5.0"
 //> using options "-unchecked", "-deprecation", "-language:reflectiveCalls", "-feature", "-Xcheckinit", "-Xfatal-warnings", "-Ywarn-dead-code", "-Ymacro-annotations"
-package tech.rocksavage.chiselware.SPI
+package tech.rocksavage.chiselware.I2C
 
 import _root_.circt.stage.ChiselStage
 import _root_.circt.stage.FirtoolOption
@@ -32,9 +32,9 @@ object Main extends App {
   if (!javaOutputDir.exists) javaOutputDir.mkdirs
 
   // ######### Set Up Top Module HERE #########
-  val top_name = "SPI.sv"
+  val top_name = "I2C.sv"
   val verilog = ChiselStage.emitSystemVerilog(
-    new SPI(myParams),
+    new I2C(myParams),
     firtoolOpts = Array(
       "--lowering-options=disallowLocalVariables,disallowPackedArrays",
       "--disable-all-randomization",
