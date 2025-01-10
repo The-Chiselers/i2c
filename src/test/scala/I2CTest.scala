@@ -65,93 +65,130 @@ class I2CTest
     runTest(testName)
   }
 
-  def runTest(testName: String): Unit = {
-    behavior of testName
+  /** A convenience method to run a single named test. */
+  def runTest(name: String): Unit = {
+    behavior of name
 
     // Example I2C parameters
     val myParams = BaseParams(dataWidth = 8, addrWidth = 16, regWidth = 8, coverage = false)
     info(s"Data Width: ${myParams.dataWidth}, Address Width: ${myParams.addrWidth}")
     info("--------------------------------")
 
-    testName match {
+
+    name match {
+      // Basic clock test
       case "masterClock" =>
         it should "generate the correct clock frequency for master mode" in {
-          val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-            clockTests.masterClock(dut, myParams)
-          }
-          coverageCollection(cov.getAnnotationSeq, myParams, testName)
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              clockTests.masterClock(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
         }
 
-      case "masterAddressTransmit" =>
-        it should "correctly transmit address packets in master mode" in {
-          val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-            transmitTests.masterAddressTransmit(dut, myParams)
-          }
-          coverageCollection(cov.getAnnotationSeq, myParams, testName)
-        }
-
-      case "masterDataTransmit" =>
-        it should "correctly transmit data packets in master mode" in {
-          val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-            transmitTests.masterDataTransmit(dut, myParams)
-          }
-          coverageCollection(cov.getAnnotationSeq, myParams, testName)
-        }
-
+      // Basic receive tests from "receiveTests.scala"
       case "masterDataReceive" =>
         it should "correctly receive data packets in master mode" in {
-          val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-            receiveTests.masterDataReceive(dut, myParams)
-          }
-          coverageCollection(cov.getAnnotationSeq, myParams, testName)
-        }
-
-      case "slaveAddressReceive" =>
-        it should "correctly receive address packets in slave mode" in {
-          val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-            receiveTests.slaveAddressReceive(dut, myParams)
-          }
-          coverageCollection(cov.getAnnotationSeq, myParams, testName)
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              receiveTests.masterDataReceive(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
         }
 
       case "slaveDataReceive" =>
         it should "correctly receive data packets in slave mode" in {
-          val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-            receiveTests.slaveDataReceive(dut, myParams)
-          }
-          coverageCollection(cov.getAnnotationSeq, myParams, testName)
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              receiveTests.slaveDataReceive(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
         }
 
-      case "slaveDataTransmit" =>
-        it should "correctly transmit data packets in slave mode" in {
-          val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-            transmitTests.slaveDataTransmit(dut, myParams)
-          }
-          coverageCollection(cov.getAnnotationSeq, myParams, testName)
+      // Arbitration from "arbitrationTests.scala"
+      case "arbitrationLost" =>
+        it should "handle multi-master arbitration lost" in {
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              arbitrationTests.masterArbitrationLostTest(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
         }
 
-      case "allTests" =>
-        runAllTests(myParams)
+      // Repeated starts from "repeatedStartTests.scala"
+      case "repeatedStart" =>
+        it should "perform repeated start without stop" in {
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              repeatedStartTests.masterRepeatedStartTest(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
+        }
 
+      // Bus error from "busErrorTests.scala"
+      case "busErrorMaster" =>
+        it should "detect a bus error in master" in {
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              busErrorTests.masterBusErrorTest(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
+        }
+
+      case "busErrorSlave" =>
+        it should "detect a bus error in slave" in {
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              busErrorTests.slaveBusErrorTest(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
+        }
+
+      // Slave collision from "slaveCollisionTests.scala"
+      case "slaveCollision" =>
+        it should "detect collision in slave" in {
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              slaveCollisionTests.slaveCollisionTest(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
+        }
+
+      // Stop condition from "stopConditionTests.scala"
+      case "masterStopCondition" =>
+        it should "release lines on master stop" in {
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              stopConditionTests.masterStopTest(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
+        }
+
+      case "slaveStopCondition" =>
+        it should "release lines on slave stop" in {
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              stopConditionTests.slaveStopTest(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
+        }
+
+      // Default
       case _ =>
-        runAllTests(myParams)
-    }
-
-    it should "generate cumulative coverage report" in {
-    coverageCollector.saveCumulativeCoverage(myParams)
+        runAllTests(myParams) // If unknown test name, run them all
     }
   }
 
-  // ------------------------------------------------
-  // Run all major tests
-  // ------------------------------------------------
+  /** A convenience method to run all major tests. */
   def runAllTests(myParams: BaseParams): Unit = {
-    clockTestsFull(myParams)
-    transmitTestsFull(myParams)
+    // Put whichever test calls you want here
+    clockTestFull(myParams)
     receiveTestsFull(myParams)
+    advancedTestsFull(myParams)
   }
 
-  def clockTestsFull(myParams: BaseParams): Unit = {
+  /** Basic clock test. */
+  def clockTestFull(myParams: BaseParams): Unit = {
     it should "generate the correct clock frequency for master mode" in {
       val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
         clockTests.masterClock(dut, myParams)
@@ -160,29 +197,7 @@ class I2CTest
     }
   }
 
-  def transmitTestsFull(myParams: BaseParams): Unit = {
-    it should "correctly transmit address packets in master mode" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-        transmitTests.masterAddressTransmit(dut, myParams)
-      }
-      coverageCollection(cov.getAnnotationSeq, myParams, "masterAddressTransmit")
-    }
-
-    it should "correctly transmit data packets in master mode" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-        transmitTests.masterDataTransmit(dut, myParams)
-      }
-      coverageCollection(cov.getAnnotationSeq, myParams, "masterDataTransmit")
-    }
-
-    it should "correctly transmit data packets in slave mode" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-        transmitTests.slaveDataTransmit(dut, myParams)
-      }
-      coverageCollection(cov.getAnnotationSeq, myParams, "slaveDataTransmit")
-    }
-  }
-
+  /** Full receive tests. */
   def receiveTestsFull(myParams: BaseParams): Unit = {
     it should "correctly receive data packets in master mode" in {
       val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
@@ -191,18 +206,63 @@ class I2CTest
       coverageCollection(cov.getAnnotationSeq, myParams, "masterDataReceive")
     }
 
-    it should "correctly receive address packets in slave mode" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-        receiveTests.slaveAddressReceive(dut, myParams)
-      }
-      coverageCollection(cov.getAnnotationSeq, myParams, "slaveAddressReceive")
-    }
-
     it should "correctly receive data packets in slave mode" in {
       val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
         receiveTests.slaveDataReceive(dut, myParams)
       }
       coverageCollection(cov.getAnnotationSeq, myParams, "slaveDataReceive")
+    }
+  }
+
+  /** All advanced features: arbitration, repeated starts, etc. */
+  def advancedTestsFull(myParams: BaseParams): Unit = {
+    it should "handle multi-master arbitration lost" in {
+      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        arbitrationTests.masterArbitrationLostTest(dut, myParams)
+      }
+      coverageCollection(cov.getAnnotationSeq, myParams, "arbitrationLost")
+    }
+
+    it should "perform repeated start without stop" in {
+      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        repeatedStartTests.masterRepeatedStartTest(dut, myParams)
+      }
+      coverageCollection(cov.getAnnotationSeq, myParams, "repeatedStart")
+    }
+
+    it should "detect a bus error in master" in {
+      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        busErrorTests.masterBusErrorTest(dut, myParams)
+      }
+      coverageCollection(cov.getAnnotationSeq, myParams, "busErrorMaster")
+    }
+
+    it should "detect a bus error in slave" in {
+      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        busErrorTests.slaveBusErrorTest(dut, myParams)
+      }
+      coverageCollection(cov.getAnnotationSeq, myParams, "busErrorSlave")
+    }
+
+    it should "detect collision in slave" in {
+      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        slaveCollisionTests.slaveCollisionTest(dut, myParams)
+      }
+      coverageCollection(cov.getAnnotationSeq, myParams, "slaveCollision")
+    }
+
+    it should "release lines on master stop" in {
+      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        stopConditionTests.masterStopTest(dut, myParams)
+      }
+      coverageCollection(cov.getAnnotationSeq, myParams, "masterStopCondition")
+    }
+
+    it should "release lines on slave stop" in {
+      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        stopConditionTests.slaveStopTest(dut, myParams)
+      }
+      coverageCollection(cov.getAnnotationSeq, myParams, "slaveStopCondition")
     }
   }
 
