@@ -1,4 +1,4 @@
-package tech.rocksavage.chiselware.SPI
+package tech.rocksavage.chiselware.I2C
 
 import chisel3._
 import chisel3.util._

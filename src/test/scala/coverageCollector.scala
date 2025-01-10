@@ -1,4 +1,4 @@
-package tech.rocksavage.chiselware.SPI
+package tech.rocksavage.chiselware.I2C
 
 import java.io.{File, PrintWriter}
 import scala.collection.mutable

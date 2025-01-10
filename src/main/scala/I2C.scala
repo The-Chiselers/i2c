@@ -1,86 +1,52 @@
-// (c) 2024 Rocksavage Technology, Inc.
-// This code is licensed under the Apache Software License 2.0 (see LICENSE.MD)
+// (c) 2025 Minimal I2C - Falling Edge Sample
 package tech.rocksavage.chiselware.I2C
 
 import chisel3._
 import chisel3.util._
+
+// Minimal placeholders
 import tech.rocksavage.chiselware.apb.{ApbBundle, ApbParams}
-import tech.rocksavage.chiselware.addrdecode.{AddrDecode, AddrDecodeError, AddrDecodeParams}
+import tech.rocksavage.chiselware.addrdecode._
 import tech.rocksavage.chiselware.addressable.RegisterMap
 
-class I2C(val regWidth: Int = 8, val dataWidth: Int = 8, val addressWidth: Int = 16) extends Module {
+class I2C(p: BaseParams) extends Module {
   val io = IO(new Bundle {
-    val apb = new ApbBundle(ApbParams(dataWidth, addressWidth))
-    val sclIn = Input(Bool())        // I2C clock input
-    val sdaIn = Input(Bool())        // I2C data input
-    val sclOut = Output(Bool())      // I2C clock output
-    val sdaOut = Output(Bool())      // I2C data output
-    val interrupt = Output(Bool())   // Interrupt signal
+    val apb    = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
+    val sclIn  = Input(Bool())
+    val sdaIn  = Input(Bool())
+    val sclOut = Output(Bool())
+    val sdaOut = Output(Bool())
+
+    val interrupt = Output(Bool())
   })
 
-  // Create a RegisterMap to manage the addressable registers
-  val registerMap = new RegisterMap(regWidth, addressWidth)
+  // ------------------------------------------------------------------------
+  // Register Map
+  // ------------------------------------------------------------------------
+  val registerMap = new RegisterMap(p.regWidth, p.addrWidth)
+  val mctrla  = RegInit(0.U(p.regWidth.W));  registerMap.createAddressableRegister(mctrla,  "mctrla")
+  val mstatus = RegInit(0.U(p.regWidth.W));  registerMap.createAddressableRegister(mstatus, "mstatus")
+  val mbaud   = RegInit(0.U(p.regWidth.W));  registerMap.createAddressableRegister(mbaud,   "mbaud")
+  val maddr   = RegInit(0.U(p.regWidth.W));  registerMap.createAddressableRegister(maddr,   "maddr")
+  val mdata   = RegInit(0.U(p.dataWidth.W)); registerMap.createAddressableRegister(mdata,   "mdata")
 
-  // ########################
-  // I2C MASTER REGISTERS
-  // ########################
-  val mctrla: UInt = RegInit(0.U(regWidth.W))   // Master Control A Register
-  registerMap.createAddressableRegister(mctrla, "MCTRLA")
+  val sctrla  = RegInit(0.U(p.regWidth.W));  registerMap.createAddressableRegister(sctrla,  "sctrla")
+  val sstatus = RegInit(0.U(p.regWidth.W));  registerMap.createAddressableRegister(sstatus, "sstatus")
+  val saddr   = RegInit(0.U(p.regWidth.W));  registerMap.createAddressableRegister(saddr,   "saddr")
+  val sdata   = RegInit(0.U(p.dataWidth.W)); registerMap.createAddressableRegister(sdata,   "sdata")
 
-  val mctrlb: UInt = RegInit(0.U(regWidth.W))   // Master Control B Register
-  registerMap.createAddressableRegister(mctrlb, "MCTRLB")
-
-  val mstatus: UInt = RegInit(0.U(regWidth.W))  // Master Status Register
-  registerMap.createAddressableRegister(mstatus, "MSTATUS")
-
-  val mbaud: UInt = RegInit(0.U(regWidth.W))    // Master Baud Rate Register
-  registerMap.createAddressableRegister(mbaud, "MBAUD")
-
-  val maddr: UInt = RegInit(0.U(regWidth.W))    // Master Address Register
-  registerMap.createAddressableRegister(maddr, "MADDR")
-
-  val mdata: UInt = RegInit(0.U(dataWidth.W))   // Master Data Register
-  registerMap.createAddressableRegister(mdata, "MDATA")
-
-  // ########################
-  // I2C SLAVE REGISTERS
-  // ########################
-  val sctrla: UInt = RegInit(0.U(regWidth.W))   // Slave Control A Register
-  registerMap.createAddressableRegister(sctrla, "SCTRLA")
-
-  val sctrlb: UInt = RegInit(0.U(regWidth.W))   // Slave Control B Register
-  registerMap.createAddressableRegister(sctrlb, "SCTRLB")
-
-  val sstatus: UInt = RegInit(0.U(regWidth.W))  // Slave Status Register
-  registerMap.createAddressableRegister(sstatus, "SSTATUS")
-
-  val saddr: UInt = RegInit(0.U(regWidth.W))    // Slave Address Register
-  registerMap.createAddressableRegister(saddr, "SADDR")
-
-  val sdata: UInt = RegInit(0.U(dataWidth.W))   // Slave Data Register
-  registerMap.createAddressableRegister(sdata, "SDATA")
-
-  val saddrmask: UInt = RegInit(0.U(regWidth.W)) // Slave Address Mask Register
-  registerMap.createAddressableRegister(saddrmask, "SADDRMASK")
-
-  // ########################
-  // AddrDecode Integration
-  // ########################
+  // Minimal APB interface
   val addrDecodeParams = registerMap.getAddrDecodeParams
-  val addrDecode = Module(new AddrDecode(addrDecodeParams))
-  addrDecode.io.addr := io.apb.PADDR
+  val addrDecode       = Module(new AddrDecode(addrDecodeParams))
+  addrDecode.io.addr       := io.apb.PADDR
   addrDecode.io.addrOffset := 0.U
-  addrDecode.io.en := true.B
-  addrDecode.io.selInput := true.B
+  addrDecode.io.en         := true.B
+  addrDecode.io.selInput   := true.B
 
-  // ########################
-  // APB Interface Signals
-  // ########################
-  io.apb.PREADY := (io.apb.PENABLE && io.apb.PSEL)
-  io.apb.PSLVERR := addrDecode.io.errorCode === AddrDecodeError.AddressOutOfRange
-  io.apb.PRDATA := 0.U
+  io.apb.PREADY  := (io.apb.PENABLE && io.apb.PSEL)
+  io.apb.PSLVERR := (addrDecode.io.errorCode === AddrDecodeError.AddressOutOfRange)
+  io.apb.PRDATA  := 0.U
 
-  // Register Read/Write Logic
   when(io.apb.PSEL && io.apb.PENABLE) {
     when(io.apb.PWRITE) {
       for (reg <- registerMap.getRegisters) {
@@ -88,7 +54,7 @@ class I2C(val regWidth: Int = 8, val dataWidth: Int = 8, val addressWidth: Int =
           reg.writeCallback(addrDecode.io.addrOffset, io.apb.PWDATA)
         }
       }
-    }.otherwise {
+    } .otherwise {
       for (reg <- registerMap.getRegisters) {
         when(addrDecode.io.sel(reg.id)) {
           io.apb.PRDATA := reg.readCallback(addrDecode.io.addrOffset)
@@ -97,142 +63,264 @@ class I2C(val regWidth: Int = 8, val dataWidth: Int = 8, val addressWidth: Int =
     }
   }
 
-  // ########################
-  // Slave Operation FSM
-  // ########################
-  val slaveFSM = RegInit(0.U(3.W)) // Slave FSM States
-  val sdaSlaveReg = RegInit(true.B) // SDA line (output when driving)
-  val sclSlaveReg = RegInit(true.B) // SCL line (output when driving)
-
-  val slaveAddressMatch = Wire(Bool()) // Indicates address match
-  val receivedData = RegInit(0.U(dataWidth.W)) // Register to store received data
-  val dataToSend = Wire(UInt(dataWidth.W)) // Data to send during transmission
-
-  slaveAddressMatch := (io.sdaIn === (saddr & ~saddrmask)) // Compare input address with configured address
-
-  val idle :: addressMatch :: dataReceive :: dataTransmit :: stopCondition :: Nil = Enum(5)
-  switch(slaveFSM) {
-    is(idle) {
-      when(io.sdaIn === false.B && io.sclIn === true.B) {
-        slaveFSM := addressMatch
-      }
-    }
-
-    is(addressMatch) {
-      when(slaveAddressMatch) {
-        sstatus := 0x01.U
-        slaveFSM := dataReceive
-      }.otherwise {
-        slaveFSM := idle
-      }
-    }
-
-    is(dataReceive) {
-      when(io.sclIn === true.B) {
-        receivedData := Cat(receivedData(dataWidth - 2, 0), io.sdaIn)
-        sstatus := 0x02.U
-      }
-      when(io.sdaIn === true.B && io.sclIn === true.B) {
-        slaveFSM := stopCondition
-      }
-    }
-
-    is(dataTransmit) {
-      when(io.sclIn === false.B) {
-        sdaSlaveReg := dataToSend(dataWidth - 1)
-        dataToSend := Cat(dataToSend(dataWidth - 2, 0), 0.U)
-      }
-      when(io.sdaIn === true.B && io.sclIn === true.B) {
-        slaveFSM := stopCondition
-      }
-    }
-
-    is(stopCondition) {
-      sdaSlaveReg := true.B
-      sclSlaveReg := true.B
-      slaveFSM := idle
-    }
+  // ------------------------------------------------------------------------
+  // Master Clock Divider
+  // ------------------------------------------------------------------------
+  val sclCnt       = RegInit(0.U(16.W))
+  val sclToggleReg = RegInit(true.B)
+  when(sclCnt === 0.U) {
+    sclCnt       := mbaud
+    sclToggleReg := ~sclToggleReg
+  } .otherwise {
+    sclCnt := sclCnt - 1.U
   }
 
-  // ########################
-  // Master Operation FSM
-  // ########################
-  val masterFSM = RegInit(0.U(3.W)) // Master FSM States
-  val sclMasterReg = RegInit(true.B) // SCL line (output)
-  val sdaMasterReg = RegInit(true.B) // SDA line (output)
+  // ------------------------------------------------------------------------
+  // Master FSM (Falling-Edge Shifting)
+  // ------------------------------------------------------------------------
+  val idleMaster           = 0.U
+  val startConditionMaster = 1.U
+  val sendAddrMaster       = 2.U
+  val waitAckAddrMaster    = 3.U
+  val txDataMaster         = 4.U
+  val waitAckDataMaster    = 5.U
+  val rxDataMaster         = 6.U
+  val waitAckRxMaster      = 7.U
+  val stopConditionMaster  = 8.U
 
-  val bitCounter = RegInit(0.U(4.W)) // Counter for bit transmission
-  val transmittedData = RegInit(0.U(dataWidth.W)) // Data to be transmitted
-  val receivedMasterData = RegInit(0.U(dataWidth.W)) // Register to store received data
+  val masterFSM    = RegInit(idleMaster)
+  val sclMasterReg = RegInit(true.B)
+  val sdaMasterReg = RegInit(true.B)
+  val bitCnt       = RegInit(0.U(4.W))
 
-  val idleMaster :: startCondition :: sendAddress :: dataTransmitMaster :: dataReceiveMaster :: stopConditionMaster :: Nil = Enum(6)
+  val addrWithRW   = RegInit(0.U(8.W))
+  val rxShift      = RegInit(0.U(p.dataWidth.W))
+  val txShift      = RegInit(0.U(p.dataWidth.W))
+
   switch(masterFSM) {
     is(idleMaster) {
-      when(mctrla(0)) {
-        masterFSM := startCondition
-      }
-    }
-
-    is(startCondition) {
-      sdaMasterReg := false.B
       sclMasterReg := true.B
-      when(sdaMasterReg === false.B && sclMasterReg === true.B) {
-        masterFSM := sendAddress
-        bitCounter := 0.U
+      sdaMasterReg := true.B
+      bitCnt := 0.U
+      mstatus := 0.U
+      when(mctrla(0)) {
+        masterFSM := startConditionMaster
       }
     }
 
-    is(sendAddress) {
-      val slaveAddress = maddr(7, 1)
-      val rwBit = maddr(0)
-      val addressWithRW = Cat(slaveAddress, rwBit)
-
-      when(bitCounter < 8.U) {
-        sdaMasterReg := addressWithRW(7 - bitCounter)
-        sclMasterReg := !sclMasterReg
-        when(sclMasterReg === true.B) {
-          bitCounter := bitCounter + 1.U
-        }
-      }.otherwise {
-        masterFSM := dataTransmitMaster
+    is(startConditionMaster) {
+      // drive SDA low first, while SCL=high
+      when(sclMasterReg && sdaMasterReg) {
+        sdaMasterReg := false.B
+      }
+      .elsewhen(!sdaMasterReg && sclMasterReg) {
+        sclMasterReg := false.B
+        masterFSM := sendAddrMaster
+        bitCnt := 0.U
       }
     }
 
-    is(dataTransmitMaster) {
-      when(bitCounter < 8.U) {
-        sdaMasterReg := transmittedData(7 - bitCounter)
+    is(sendAddrMaster) {
+      // 7-bit + R/W => 8 bits
+      val slave7 = maddr(7,1)
+      val rwBit  = maddr(0)
+      addrWithRW := Cat(slave7, rwBit)
+
+      // SHIFT OUT on FALLING edges
+      when(!sclMasterReg && sclToggleReg) {
+        val outBit = addrWithRW(7.U - bitCnt)
+        sdaMasterReg := outBit
+        printf(p"[Master] sendAddr bit=$outBit bitCnt=$bitCnt\n")
+        bitCnt := bitCnt + 1.U
+      }
+      // toggle SCL
+      when(sclToggleReg) {
         sclMasterReg := !sclMasterReg
-        when(sclMasterReg === true.B) {
-          bitCounter := bitCounter + 1.U
-        }
-      }.otherwise {
+      }
+      when(bitCnt===8.U) {
+        masterFSM := waitAckAddrMaster
+        bitCnt := 0.U
+      }
+    }
+
+    is(waitAckAddrMaster) {
+      // release sda => high
+      when(!sclMasterReg && sclToggleReg) {
+        sdaMasterReg := true.B
+      }
+      // toggle scl
+      when(sclToggleReg) {
+        sclMasterReg := !sclMasterReg
+      }
+      // on next falling => read ack => ignore => pick TX or RX
+      when(!sclMasterReg && sclToggleReg) {
+        val rwBit = addrWithRW(0)
+        masterFSM := Mux(rwBit===1.U, rxDataMaster, txDataMaster)
+      }
+    }
+
+    is(txDataMaster) {
+      txShift := mdata
+      when(!sclMasterReg && sclToggleReg) {
+        val outBit = txShift(7.U - bitCnt)
+        sdaMasterReg := outBit
+        printf(p"[Master] TX bit=$outBit bitCnt=$bitCnt\n")
+        bitCnt := bitCnt + 1.U
+      }
+      when(sclToggleReg) {
+        sclMasterReg := !sclMasterReg
+      }
+      when(bitCnt===8.U) {
+        masterFSM := waitAckDataMaster
+        bitCnt := 0.U
+      }
+    }
+
+    is(waitAckDataMaster) {
+      when(!sclMasterReg && sclToggleReg) {
+        sdaMasterReg := true.B
+      }
+      when(sclToggleReg) {
+        sclMasterReg := !sclMasterReg
+      }
+      when(!sclMasterReg && sclToggleReg) {
         masterFSM := stopConditionMaster
       }
     }
 
-    is(dataReceiveMaster) {
-      when(bitCounter < 8.U) {
-        when(sclMasterReg === true.B) {
-          receivedMasterData := Cat(receivedMasterData(dataWidth - 2, 0), io.sdaIn)
-          bitCounter := bitCounter + 1.U
-        }
+    is(rxDataMaster) {
+      // SHIFT IN on FALLING edges
+      when(!sclMasterReg && sclToggleReg) {
+        val inBit = io.sdaIn & io.sdaOut
+        rxShift := Cat(rxShift(p.dataWidth-2,0), inBit)
+        printf(p"[MasterRx] bit=$inBit bitCnt=$bitCnt => shift=${Binary(rxShift)}\n")
+        bitCnt := bitCnt + 1.U
+      }
+      when(sclToggleReg) {
         sclMasterReg := !sclMasterReg
-      }.otherwise {
+      }
+      when(bitCnt===8.U) {
+        mdata := rxShift
+        mstatus := 2.U
+        printf(p"[MasterRx] final=0x${Hexadecimal(rxShift)}\n")
+        masterFSM := waitAckRxMaster
+        bitCnt := 0.U
+      }
+    }
+
+    is(waitAckRxMaster) {
+      // master ack => sda=0
+      when(!sclMasterReg && sclToggleReg) {
+        sdaMasterReg := false.B
+      }
+      when(sclToggleReg) {
+        sclMasterReg := !sclMasterReg
+      }
+      when(!sclMasterReg && sclToggleReg) {
         masterFSM := stopConditionMaster
       }
     }
 
     is(stopConditionMaster) {
-      sdaMasterReg := true.B
-      sclMasterReg := true.B
-      when(sdaMasterReg === true.B && sclMasterReg === true.B) {
+      // release
+      when(!sclMasterReg && sclToggleReg) {
+        sclMasterReg := true.B
+      }
+      .elsewhen(sclMasterReg && !sdaMasterReg && sclToggleReg) {
+        sdaMasterReg := true.B
+      }
+      .elsewhen(sclMasterReg && sdaMasterReg) {
         masterFSM := idleMaster
       }
     }
   }
 
-  // Drive Outputs
-  io.sclOut := sclSlaveReg & sclMasterReg
-  io.sdaOut := sdaSlaveReg & sdaMasterReg
-  io.interrupt := (slaveFSM === addressMatch) || (masterFSM === stopConditionMaster)
+  // ------------------------------------------------------------------------
+  // Slave FSM (Falling-Edge Sample, Always ACK)
+  // ------------------------------------------------------------------------
+  val idleSlave     = 0.U
+  val startDetected = 1.U
+  val addrReceive   = 2.U
+  val addrAck       = 3.U
+  val dataReceive   = 4.U
+  val dataAck       = 5.U
+
+  val slaveFSM     = RegInit(idleSlave)
+  val sclSlaveReg  = RegInit(true.B)
+  val sdaSlaveReg  = RegInit(true.B)
+  val sBitCnt      = RegInit(0.U(4.W))
+  val sShift       = RegInit(0.U(p.dataWidth.W))
+  val slaveEn      = sctrla(0)
+
+  switch(slaveFSM) {
+    is(idleSlave) {
+      sstatus := 0.U
+      sclSlaveReg := true.B
+      sdaSlaveReg := true.B
+      // if enabled & sdaIn=0 while sclIn=1 => start
+      when(slaveEn && !io.sdaIn && io.sclIn) {
+        slaveFSM := startDetected
+        printf("[Slave] start detected\n")
+      }
+    }
+
+    is(startDetected) {
+      sBitCnt := 0.U
+      sShift := 0.U
+      slaveFSM := addrReceive
+    }
+
+    is(addrReceive) {
+      // SHIFT on FALLING => if(!io.sclIn)
+      when(!io.sclIn) {
+        val inBit = io.sdaIn & io.sdaOut
+        sShift := Cat(sShift(p.dataWidth-2,0), inBit)
+        printf(p"[SlaveAddr] bit=$inBit bitCnt=$sBitCnt => shift=${Binary(sShift)}\n")
+        sBitCnt := sBitCnt + 1.U
+      }
+      when(sBitCnt===7.U && !io.sclIn) {
+        slaveFSM := addrAck
+      }
+    }
+
+    is(addrAck) {
+      sstatus := 1.U
+      sdaSlaveReg := false.B
+      printf(p"[SlaveAddr] final=0x${Hexadecimal(sShift)}, ack\n")
+      sBitCnt := 0.U
+      sShift := 0.U
+      slaveFSM := dataReceive
+    }
+
+    is(dataReceive) {
+      // SHIFT on FALLING
+      when(!io.sclIn) {
+        val inBit = io.sdaIn & io.sdaOut
+        sShift := Cat(sShift(p.dataWidth-2,0), inBit)
+        printf(p"[SlaveData] bit=$inBit bitCnt=$sBitCnt => shift=${Binary(sShift)}\n")
+        sBitCnt := sBitCnt + 1.U
+      }
+      when(sBitCnt===7.U && !io.sclIn) {
+        slaveFSM := dataAck
+      }
+    }
+
+    is(dataAck) {
+      sdata := sShift
+      sstatus := 2.U
+      sdaSlaveReg := false.B
+      printf(p"[SlaveData] final=0x${Hexadecimal(sShift)}, ack\n")
+      sBitCnt := 0.U
+      sShift := 0.U
+      slaveFSM := dataReceive
+    }
+  }
+
+  // ------------------------------------------------------------------------
+  // Combine Master + Slave => wired-AND
+  // ------------------------------------------------------------------------
+  io.sclOut := sclMasterReg & sclSlaveReg
+  io.sdaOut := sdaMasterReg & sdaSlaveReg
+
+  io.interrupt := (mstatus===2.U) || (sstatus===2.U)
 }
