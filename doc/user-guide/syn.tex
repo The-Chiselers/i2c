@@ -1,0 +1,123 @@
+\section{Synthesis}
+
+\subsection{Area}
+The table below provides example area estimates for different configurations or features (e.g., enabling multi-master, address masking, SMBus mode). Actual results vary with technology/library.
+
+\renewcommand*{\arraystretch}{1.4}
+\begingroup
+\small
+\begin{longtable}[H]{
+    | p{0.20\textwidth}
+    | p{0.15\textwidth}
+    | p{0.25\textwidth}
+    | p{0.15\textwidth}
+    | p{0.15\textwidth} |
+  }
+  \hline
+  \rowcolor{black}
+  \textcolor{white}{\textbf{Config Name}} &
+  \textcolor{white}{\textbf{Speed Mode}} &
+  \textcolor{white}{\textbf{Features Enabled}} &
+  \textcolor{white}{\textbf{Gates}} &
+  \textcolor{white}{\textbf{Notes}} \\ 
+  \hline \hline
+  \endfirsthead
+
+  \rowcolor{black}
+  \textcolor{white}{\textbf{Config Name}} &
+  \textcolor{white}{\textbf{Speed Mode}} &
+  \textcolor{white}{\textbf{Features Enabled}} &
+  \textcolor{white}{\textbf{Gates}} &
+  \textcolor{white}{\textbf{Notes}} \\ 
+  \hline \hline
+  \endhead
+
+  \hline
+  \endfoot
+
+basic\_std &
+100kHz &
+Master only &
+1,500 &
+Minimal config \\ \hline
+
+multi\_fast\_smbus &
+400kHz &
+Multi-master, SMBus time-out &
+3,200 &
+Includes ARP logic \\ \hline
+
+fastplus\_dual &
+1MHz &
+Dual mode (Master+Slave) &
+5,000 &
+High-performance variant \\ \hline
+
+\caption{Example Synthesis Area Estimates}
+\label{table:area}
+\end{longtable}
+\endgroup
+
+\subsection{SDC File}
+An \texttt{.sdc} file can be generated to guide STA (Static Timing Analysis). This file typically contains:
+\begin{itemize}
+    \item create\_clock constraints for the main system clock
+    \item I/O constraints for setup/hold
+\end{itemize}
+
+\subsection{Timing}
+Below is an example table of timing results under a typical 130nm library:
+
+\renewcommand*{\arraystretch}{1.4}
+\begin{longtable}[H]{
+    | p{0.20\textwidth}
+    | p{0.08\textwidth}
+    | p{0.12\textwidth}
+    | p{0.13\textwidth}
+    | p{0.15\textwidth}
+    | p{0.15\textwidth} |
+  }
+  \hline
+  \rowcolor{black}
+  \textcolor{white}{\textbf{Config}} &
+  \textcolor{white}{\textbf{Period}} &
+  \textcolor{white}{\textbf{Duty Cycle}} &
+  \textcolor{white}{\textbf{Input Delay}} &
+  \textcolor{white}{\textbf{Output Delay}} &
+  \textcolor{white}{\textbf{Slack}} \\ 
+  \hline \hline
+  \endfirsthead
+
+  \rowcolor{black}
+  \textcolor{white}{\textbf{Config}} &
+  \textcolor{white}{\textbf{Period}} &
+  \textcolor{white}{\textbf{Duty Cycle}} &
+  \textcolor{white}{\textbf{Input Delay}} &
+  \textcolor{white}{\textbf{Output Delay}} &
+  \textcolor{white}{\textbf{Slack}} \\ 
+  \hline \hline
+  \endhead
+
+  \hline
+  \endfoot
+
+basic\_std &
+10ns &
+50\% &
+1ns &
+1ns &
+2.0ns (MET) \\ \hline
+
+multi\_fast\_smbus &
+5ns &
+50\% &
+1ns &
+1ns &
+1.2ns (MET) \\ \hline
+
+\caption{Static Timing Analysis Results}
+\label{table:timing}
+\end{longtable}
+
+\subsection{Multicycle Paths}
+Currently, none. If any stage-latched pipelines are added, consider specifying them here.

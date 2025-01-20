@@ -1,0 +1,60 @@
+\section{Parameter Descriptions}
+
+Below is an example table for top-level parameters controlling the I2C core’s configuration. Adjust as needed.
+
+\renewcommand*{\arraystretch}{1.4}
+\begingroup
+\small
+\rowcolors{2}{gray!30}{gray!10}
+\arrayrulecolor{gray!50}
+
+\begin{longtable}[H]{
+    | p{0.22\textwidth}
+    | p{0.12\textwidth}
+    | p{0.05\textwidth}
+    | p{0.05\textwidth}
+    | p{0.50\textwidth} |
+  }
+  \hline
+  \rowcolor{black}
+  \textcolor{white}{\textbf{Name}} &
+  \textcolor{white}{\textbf{Type}} &
+  \textcolor{white}{\textbf{Min}} &
+  \textcolor{white}{\textbf{Max}} &
+  \textcolor{white}{\textbf{Description}} \\ 
+  \hline \hline
+  \endfirsthead
+
+  \textcolor{white}{\textbf{Name}} &
+  \textcolor{white}{\textbf{Type}} &
+  \textcolor{white}{\textbf{Min}} &
+  \textcolor{white}{\textbf{Max}} &
+  \textcolor{white}{\textbf{Description}} \\ 
+  \hline \hline
+  \endhead
+
+  \hline
+  \endfoot
+
+clkFreq &
+Integer &
+1 &
+- &
+The main system clock frequency in MHz used by the I2C core. \\ \hline
+
+i2cSpeed &
+Integer &
+100 &
+1000 &
+I2C bus speed in kHz (e.g., 100 for Standard mode, 400 for Fast mode, 1000 for Fast+).\\ \hline
+
+addrWidth &
+Integer &
+7 &
+10 &
+Address width: typically 7-bit addressing, optionally support 10-bit. \\ \hline
+
+\caption{I2C Core Parameter Descriptions}
+\label{table:params}
+\end{longtable}
+\endgroup

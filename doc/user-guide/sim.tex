@@ -1,0 +1,32 @@
+\section{Simulation}
+
+\subsection{Tests}
+A typical verification environment will:
+\begin{itemize}
+  \item Randomize addresses, data lengths, and read/write sequences.
+  \item Include Master-only, Slave-only, and multi-master scenarios.
+  \item Stress test with clock stretching and bus errors (e.g., invalid Start/Stop).
+\end{itemize}
+
+\subsection{Code Coverage}
+All signals are checked to ensure toggling at least once. Watch for corner cases:
+\begin{itemize}
+  \item Collision events
+  \item Arbitration lost
+  \item Bus error conditions
+  \item Time-outs
+\end{itemize}
+
+\subsection{Running Simulation}
+Use your preferred tool (\texttt{iverilog}, \texttt{vcs}, \texttt{questa}, etc.). Example:
+\begin{verbatim}
+$ make i2c_test
+# or
+$ vsim i2c_tb
+\end{verbatim}
+
+\subsection{Viewing Waveforms}
+A wave file (e.g., \texttt{i2c.fst}) can be opened in \texttt{gtkwave} or any other viewer:
+\begin{verbatim}
+$ gtkwave ./out/test/i2c.fst
+\end{verbatim}

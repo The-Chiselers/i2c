@@ -1,0 +1,143 @@
+\section{Port Descriptions}
+
+\subsection{I2C Interface}
+
+The I2C core requires two primary signals, \textbf{SDA} (Serial Data) and \textbf{SCL} (Serial Clock), both configured for open-drain (wired-AND) operation with external pull-up resistors. Below is a sample table describing them in the style of the SPI doc.
+
+\renewcommand*{\arraystretch}{1.4}
+\begingroup
+\small
+\rowcolors{2}{gray!30}{gray!10} 
+\arrayrulecolor{gray!80}
+
+\begin{longtable}[H]{
+  | p{0.20\textwidth}
+  | p{0.20\textwidth}
+  | p{0.12\textwidth}
+  | p{0.43\textwidth} |
+}
+  \hline
+  \rowcolor{black}
+  \textcolor{white}{\textbf{Port Name}} &
+  \textcolor{white}{\textbf{Width}} &
+  \textcolor{white}{\textbf{Direction}} &
+  \textcolor{white}{\textbf{Description}} \\ 
+  \hline
+  \endfirsthead
+
+  \hline
+  \rowcolor{black}
+  \textcolor{white}{\textbf{Port Name}} &
+  \textcolor{white}{\textbf{Width}} &
+  \textcolor{white}{\textbf{Direction}} &
+  \textcolor{white}{\textbf{Description}} \\
+  \hline
+  \endhead
+
+  \hline
+  \endfoot
+
+SDA & 1 & In/Out (Open Drain) & Serial Data line for I2C. Must be pulled up externally. \\ \hline
+SCL & 1 & In/Out (Open Drain) & Serial Clock line for I2C. Must be pulled up externally. \\ \hline
+
+\caption{I2C Ports Descriptions}
+\label{table:ports}
+\end{longtable}
+\endgroup
+
+\subsection{Apb3 Interface}
+The \textbf{Apb3 Interface} is a regular Apb3 Slave Interface. All signals supported are shown below in 
+Table 2. See the \textit{AMBA Apb Protocol Specifications} for a complete description of the signals. The width of several ports is controlled 
+by the following input parameters:
+
+\begin{itemize}[noitemsep]
+  \item \textit{dataWidth} is the width of PWDATA and PRDATA in bits
+  \item \textit{addrWidth} is the width of PADDR in bits
+\end{itemize}
+ 
+\renewcommand*{\arraystretch}{1.4}
+
+\begingroup
+\small
+\rowcolors{2}{gray!30}{gray!10} % Alternating colors start from the second row
+\begin{longtable}[H]{
+  | p{0.20\textwidth}
+  | p{0.20\textwidth}
+  | p{0.12\textwidth}
+  | p{0.43\textwidth} |
+  }
+
+  \hline
+  \rowcolor{gray}
+  \textcolor{white}{\textbf{Port Name}} & 
+  \textcolor{white}{\textbf{Width}} & 
+  \textcolor{white}{\textbf{Direction}} & 
+  \textcolor{white}{\textbf{Description}} \\ \hline
+  \endfirsthead
+
+  \hline
+  \rowcolor{gray}
+  \textcolor{white}{\textbf{Port Name}} & 
+  \textcolor{white}{\textbf{Width}} & 
+  \textcolor{white}{\textbf{Direction}} & 
+  \textcolor{white}{\textbf{Description}}\\ \hline
+  \endhead
+
+  \hline
+  \endfoot
+
+
+  PCLK &       
+  1 &       
+  Input &       
+  Positive edge clock \\ \hline
+
+  PRESETN &       
+  1 &       
+  Input &       
+  Active low reset \\ \hline
+
+  PSEL &       
+  1 & 
+  Input &       
+  Indicates slave is selected and a data transfer is required \\ \hline
+
+  PENABLE &        
+  1 & 
+  Input &       
+  Indicates second cycle of Apb transfer \\ \hline
+
+  PWRITE &        
+  1 & 
+  Input &       
+  Indicates write access when HIGH and read access when LOW\\ \hline
+
+  PADDR &      
+  \textit{addrWidth} & 
+  Input &     
+  Address bus \\ \hline
+
+  PWDATA &      
+  \textit{dataWidth} & 
+  Input &     
+  Write data bus driven when PWRITE is HIGH\\ \hline
+
+  PRDATA &      
+  \textit{dataWidth} & 
+  Output &     
+  Read data bus driven when PWRITE is LOW\\ \hline
+ 
+  PREADY &        
+  1 & 
+  Output &       
+  Transfer ready \\ \hline
+
+  PSLVERR &        
+  1 & 
+  Output &       
+  Transfer error \\ \hline
+  
+\end{longtable}
+\captionsetup{aboveskip=0pt}
+\captionof{table}{Apb Ports Descriptions}\label{table:interface}
+\endgroup
