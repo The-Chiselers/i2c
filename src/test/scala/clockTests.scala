@@ -12,12 +12,12 @@ object clockTests {
 
     // Example target: 100 kHz SCL, 16 MHz system clock
     val sclFreq   = 100_000
-    val clockFreq = 16_000_000
+    val clockFreq = 50_000_000
 
     // According to a simplified formula:
     // BAUD ≈ (PCLK / (2 * f_SCL)) - 1 
     // For 16MHz & 100kHz, that is (16e6 / (2*100e3)) - 1 = 79
-    val expectedBaud = ((clockFreq / (2 * sclFreq)) - 1).toInt
+    val expectedBaud = ((clockFreq / (2 * sclFreq)) - 5).toInt
     println(s"Calculated BAUD for 100 kHz: $expectedBaud")
 
     // Write the BAUD value
@@ -31,14 +31,14 @@ object clockTests {
 
     // Now step the simulation enough cycles to see SCL toggling
     var togglesSeen    = 0
-    var lastSclState   = dut.io.sclOut.peek().litToBoolean
+    var lastSclState   = dut.io.master.scl.peek().litToBoolean
 
     // We expect SCL to have a period of about 160 system cycles at 100 kHz
     // (80 cycles low + 80 cycles high).
     // Step 300 cycles and see if we get ~2 toggles.
     for (_ <- 0 until 300) {
       dut.clock.step()
-      val currentSclState = dut.io.sclOut.peek().litToBoolean
+      val currentSclState = dut.io.master.scl.peek().litToBoolean
       if (currentSclState != lastSclState) {
         togglesSeen += 1
       }

@@ -6,6 +6,8 @@ import java.io.{File, PrintWriter}
 import _root_.circt.stage.ChiselStage
 
 class ApbInterface(p: BaseParams) extends Bundle {
+  //val PCLK = Input(Clock())
+  //val PRESETn = Input(AsynchReset())
   val PSEL = Input(Bool()) // Peripheral select
   val PENABLE = Input(Bool()) // Enable signal
   val PWRITE = Input(Bool()) // Read/Write signal
@@ -17,17 +19,15 @@ class ApbInterface(p: BaseParams) extends Bundle {
 }
 
 class MasterInterface() extends Bundle {
-  val miso = Input(Bool())
-  val mosi = Output(UInt(1.W))
-  val sclk = Output(Bool())
-  val cs = Output(Bool())
+  val scl    = Output(Bool())  // I2C clock output (master)
+  val sdaIn     = Input(Bool())
+  val sdaOut    = Output(Bool())  // I2C data output (master)
 }
 
 class SlaveInterface() extends Bundle {
-  val miso = Output(Bool())
-  val mosi = Input(UInt(1.W))
-  val sclk = Input(Bool())
-  val cs = Input(Bool())
+  val scl     = Input(Bool())   // I2C clock input (slave mode)
+  val sdaIn     = Input(Bool())   // I2C data input (slave mode)'
+  val sdaOut    = Output(Bool())
 }
 
 class I2CInterface(p: BaseParams) extends Bundle {

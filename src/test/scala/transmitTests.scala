@@ -18,7 +18,7 @@ object transmitTests {
     var matched = false
     for (_ <- 0 until cycles) {
       dut.clock.step(1)
-      if (dut.io.sdaOut.peek().litToBoolean == expected) {
+      if (dut.io.master.sdaOut.peek().litToBoolean == expected) {
         matched = true
       }
     }

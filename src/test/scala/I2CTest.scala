@@ -32,8 +32,8 @@ class I2CTest
   println(s"Running test: $testName")
 
   // Command-line toggles, e.g. -DenableVcd=true, etc.
-  val enableVcd    = System.getProperty("enableVcd", "false").toBoolean
-  val enableFst    = System.getProperty("enableFst", "true").toBoolean
+  val enableVcd    = System.getProperty("enableVcd", "true").toBoolean
+  val enableFst    = System.getProperty("enableFst", "false").toBoolean
   val useVerilator = System.getProperty("useVerilator", "false").toBoolean
 
   val buildRoot    = sys.env.get("BUILD_ROOT_RELATIVE")
@@ -70,7 +70,7 @@ class I2CTest
     behavior of name
 
     // Example I2C parameters
-    val myParams = BaseParams(dataWidth = 8, addrWidth = 16, regWidth = 8, coverage = false)
+    val myParams = BaseParams(dataWidth = 8, addrWidth = 16, regWidth = 8, clkFreq = 50, coverage = false)
     info(s"Data Width: ${myParams.dataWidth}, Address Width: ${myParams.addrWidth}")
     info("--------------------------------")
 

@@ -25,7 +25,8 @@ object Main extends App {
   val myParams = BaseParams(
     dataWidth = 8,
     addrWidth = 8,
-    regWidth = 8
+    regWidth = 8,
+    clkFreq = 50
   )
   // if output dir does not exist, make path
   val javaOutputDir = new java.io.File(outputDir)

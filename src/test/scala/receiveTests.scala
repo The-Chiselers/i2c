@@ -26,12 +26,12 @@ object receiveTests {
     val dataByte = 0xA5
     for (i <- 0 until 8) {
       // Wait until sclOut=LOW
-      while(dut.io.sclOut.peek().litToBoolean) {
+      while(dut.io.master.scl.peek().litToBoolean) {
         dut.clock.step(1)
       }
       // Now set the bit
       val bit = (dataByte >> (7 - i)) & 1
-      dut.io.sdaIn.poke(bit.B)
+      dut.io.slave.sdaIn.poke(bit.B)
 
       // Step 2 cycles => let sclOut go LOW->HIGH => master latches on rising
       dut.clock.step(2)
@@ -63,22 +63,22 @@ object receiveTests {
     writeAPB(dut.io.apb, saddrReg.U, 0x50.U)
 
     // fake start => sclIn=1, sdaIn=1->0
-    dut.io.sclIn.poke(true.B)
-    dut.io.sdaIn.poke(true.B)
+    dut.io.slave.scl.poke(true.B)
+    dut.io.slave.sdaIn.poke(true.B)
     dut.clock.step(2)
-    dut.io.sdaIn.poke(false.B)
+    dut.io.slave.sdaIn.poke(false.B)
     dut.clock.step(2)
 
     val addrByte= 0xA0
     for(i<-0 until 8){
       // place bit while sclIn=LOW
-      dut.io.sclIn.poke(false.B)
+      dut.io.slave.scl.poke(false.B)
       val bit= (addrByte >> (7-i)) & 1
-      dut.io.sdaIn.poke(bit.B)
+      dut.io.slave.sdaIn.poke(bit.B)
       dut.clock.step(1)
 
       // now sclIn= true => rising => latch
-      dut.io.sclIn.poke(true.B)
+      dut.io.slave.scl.poke(true.B)
       dut.clock.step(1)
     }
 
@@ -99,22 +99,22 @@ object receiveTests {
     writeAPB(dut.io.apb, sctrlaReg.U, 1.U)
 
     // fake start
-    dut.io.sclIn.poke(true.B)
-    dut.io.sdaIn.poke(true.B)
+    dut.io.slave.scl.poke(true.B)
+    dut.io.slave.sdaIn.poke(true.B)
     dut.clock.step(2)
-    dut.io.sdaIn.poke(false.B)
+    dut.io.slave.sdaIn.poke(false.B)
     dut.clock.step(2)
 
     val dataByte= 0xA5
     for(i<-0 until 8){
       // sclIn=HIGH => place bit
-      dut.io.sclIn.poke(true.B)
+      dut.io.slave.scl.poke(true.B)
       val bit= (dataByte >> (7-i)) &1
-      dut.io.sdaIn.poke(bit.B)
+      dut.io.slave.sdaIn.poke(bit.B)
       dut.clock.step(1)
 
       // sclIn=LOW => falling => latch
-      dut.io.sclIn.poke(false.B)
+      dut.io.slave.scl.poke(false.B)
       dut.clock.step(1)
     }
 

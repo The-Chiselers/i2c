@@ -7,5 +7,6 @@ case class BaseParams(
     dataWidth: Int = 8,
     addrWidth: Int = 8,
     regWidth: Int = 8,
+    clkFreq: Int = 50,
     coverage: Boolean = true
     ) {}

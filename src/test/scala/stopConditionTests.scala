@@ -29,8 +29,8 @@ object stopConditionTests {
     var stopSeen = false
     for (_ <- 0 until 50) {
       dut.clock.step(1)
-      val sclVal = dut.io.sclOut.peek().litToBoolean
-      val sdaVal = dut.io.sdaOut.peek().litToBoolean
+      val sclVal = dut.io.master.scl.peek().litToBoolean
+      val sdaVal = dut.io.master.sdaOut.peek().litToBoolean
       if (sclVal && sdaVal) {
         stopSeen = true
       }
@@ -51,10 +51,10 @@ object stopConditionTests {
 
     // Step a bit, then forcibly drive sclIn= true, sdaIn= true => stop
     dut.clock.step(10)
-    dut.io.sclIn.poke(true.B)
-    dut.io.sdaIn.poke(false.B)
+    dut.io.slave.scl.poke(true.B)
+    dut.io.slave.sdaIn.poke(false.B)
     dut.clock.step(2)
-    dut.io.sdaIn.poke(true.B)
+    dut.io.slave.sdaIn.poke(true.B)
     dut.clock.step(5)
 
     // The slave FSM might move to stopConditionSlave => then idle
@@ -62,8 +62,8 @@ object stopConditionTests {
     var stopDetected = false
     for (_ <- 0 until 20) {
       dut.clock.step(1)
-      val sclVal = dut.io.sclOut.peek().litToBoolean
-      val sdaVal = dut.io.sdaOut.peek().litToBoolean
+      val sclVal = dut.io.master.scl.peek().litToBoolean
+      val sdaVal = dut.io.master.sdaOut.peek().litToBoolean
       if (sclVal && sdaVal) {
         stopDetected = true
       }

@@ -26,12 +26,12 @@ object busErrorTests {
     
     // Force an illegal move: SCL is high => forcibly toggle sdaIn
     // In a real design, we might wait exactly for sclOut=1
-    while(!dut.io.sclOut.peek().litToBoolean) { dut.clock.step(1) }
+    while(!dut.io.master.scl.peek().litToBoolean) { dut.clock.step(1) }
     
     // Now quickly toggle sdaIn
-    dut.io.sdaIn.poke(false.B)
+    dut.io.slave.sdaIn.poke(false.B)
     dut.clock.step(2)
-    dut.io.sdaIn.poke(true.B)
+    dut.io.slave.sdaIn.poke(true.B)
 
     dut.clock.step(10)
 
@@ -56,10 +56,10 @@ object busErrorTests {
 
     // Now cause an illegal stop or sda toggling while sclIn=1
     // e.g. quickly toggle sdaIn while sclIn=1
-    dut.io.sclIn.poke(true.B)
-    dut.io.sdaIn.poke(false.B)
+    dut.io.slave.scl.poke(true.B)
+    dut.io.slave.sdaIn.poke(false.B)
     dut.clock.step(2)
-    dut.io.sdaIn.poke(true.B)
+    dut.io.slave.sdaIn.poke(true.B)
     dut.clock.step(5)
 
     // Check sstatus for BUSERR bit => assume bit7 as well

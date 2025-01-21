@@ -29,13 +29,13 @@ object slaveCollisionTests {
 
     // 2) Force bus SDA high from the outside
     // (wired-AND => if we poke sdaIn= true, and the slave tries to drive false => collision)
-    dut.io.sdaIn.poke(true.B)
+    dut.io.slave.sdaIn.poke(true.B)
 
     // 3) On the next falling edge of sclIn, the slave tries to drive sdaSlaveReg= false => collision
     // For demonstration, let's pulse sclIn low
-    dut.io.sclIn.poke(false.B)
+    dut.io.slave.scl.poke(false.B)
     dut.clock.step(2)
-    dut.io.sclIn.poke(true.B)
+    dut.io.slave.scl.poke(true.B)
     dut.clock.step(2)
 
     // 4) read sstatus => collision bit

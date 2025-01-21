@@ -10,11 +10,9 @@ import tech.rocksavage.chiselware.addressable.RegisterMap
 
 class I2C(p: BaseParams) extends Module {
   val io = IO(new Bundle {
-    val apb       = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
-    val sclIn     = Input(Bool())   // I2C clock input (slave mode)
-    val sdaIn     = Input(Bool())   // I2C data input (slave mode)
-    val sclOut    = Output(Bool())  // I2C clock output (master)
-    val sdaOut    = Output(Bool())  // I2C data output (master)
+    val apb = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
+    val master = new MasterInterface
+    val slave = new SlaveInterface
     val interrupt = Output(Bool())  // Interrupt
   })
 
@@ -97,25 +95,33 @@ class I2C(p: BaseParams) extends Module {
   // ------------------------------------------------------------------------
   // Clock Divider (Master)
   // ------------------------------------------------------------------------
-  val sclCnt       = RegInit(0.U(16.W))
-  val sclToggleReg = RegInit(true.B)
+  val sclCounter    = RegInit(0.U(16.W))
+  val sclReg        = RegInit(false.B)
 
-  when(sclCnt === 0.U) {
-    sclCnt       := mbaud
-    sclToggleReg := ~sclToggleReg
-  } .otherwise {
-    sclCnt := sclCnt - 1.U
+  when(mctrla(0) === 1.U){
+    val fscl = (p.clkFreq.U * 1000000.U) / (10.U + 2.U * mbaud)
+    val sclPeriod = (p.clkFreq.U * 1000000.U) / (2.U * fscl)
+    when(sclCounter === (sclPeriod - 1.U)) {
+      sclCounter := 0.U
+      sclReg := ~sclReg
+    } .otherwise {
+      sclCounter := sclCounter + 1.U
+    }
+    io.master.scl := sclReg
+  }.otherwise {
+    io.master.scl := 0.U
+    io.master.sdaOut := 0.U
   }
 
   // ------------------------------------------------------------------------
   // Bus Error Detection (Minimal Example)
   // ------------------------------------------------------------------------
-  val sdaOld = RegNext(io.sdaOut & io.sdaIn) 
-  val sclOld = RegNext(io.sclOut & io.sclIn)
+  val sdaOld = RegNext(io.master.sdaOut & io.master.sdaIn) 
+  val sclOld = RegNext(io.master.scl & io.slave.scl)
 
   val busErr = RegInit(false.B)
-  when(sclOld === true.B && (io.sclOut & io.sclIn) === true.B) {
-    when((io.sdaOut & io.sdaIn) =/= sdaOld) {
+  when(sclOld === true.B && (io.master.scl & io.slave.scl) === true.B) {
+    when((io.master.sdaOut & io.master.sdaIn) =/= sdaOld) {
       busErr := true.B
     }
   }
@@ -145,7 +151,7 @@ class I2C(p: BaseParams) extends Module {
   val sdaMasterReg = RegInit(true.B)
 
   val arbLost     = RegInit(false.B)
-  def busSDA()    = (io.sdaOut & io.sdaIn)
+  def busSDA()    = (io.master.sdaOut & io.master.sdaIn)
 
   // If we want SDA=1 but bus is 0 => lost arb
   def checkArbitration(): Unit = {
@@ -205,12 +211,12 @@ class I2C(p: BaseParams) extends Module {
       addressWithRW := Cat(slave7, rwBit)
 
       // SHIFT out on falling edges
-      when(!sclMasterReg && sclToggleReg) {
+      when(!sclMasterReg && sclReg) {
         sdaMasterReg := addressWithRW(7.U - bitCounter)
         bitCounter := bitCounter + 1.U
         checkArbitration()
       }
-      when(sclToggleReg) {
+      when(sclReg) {
         sclMasterReg := !sclMasterReg
       }
       when(arbLost) {
@@ -223,14 +229,14 @@ class I2C(p: BaseParams) extends Module {
 
     is(waitAckMasterAddr) {
       // release for ack
-      when(!sclMasterReg && sclToggleReg) {
+      when(!sclMasterReg && sclReg) {
         sdaMasterReg := true.B
       }
-      when(sclToggleReg) {
+      when(sclReg) {
         sclMasterReg := !sclMasterReg
       }
       // on rising => read ack => pick TX or RX
-      when(sclMasterReg && sclToggleReg) {
+      when(sclMasterReg && sclReg) {
         val ack= !busSDA()
         val rw= addressWithRW(0)
         masterFSM := Mux(rw===1.U, receiveDataMaster, transmitDataMaster)
@@ -242,12 +248,12 @@ class I2C(p: BaseParams) extends Module {
     is(transmitDataMaster) {
       transmittedData := mdata
       // SHIFT out on falling
-      when(!sclMasterReg && sclToggleReg) {
+      when(!sclMasterReg && sclReg) {
         sdaMasterReg := transmittedData(7.U - bitCounter)
         bitCounter := bitCounter+1.U
         checkArbitration()
       }
-      when(sclToggleReg) {
+      when(sclReg) {
         sclMasterReg := !sclMasterReg
       }
       when(arbLost) {
@@ -259,13 +265,13 @@ class I2C(p: BaseParams) extends Module {
     }
 
     is(waitAckMasterData) {
-      when(!sclMasterReg && sclToggleReg) {
+      when(!sclMasterReg && sclReg) {
         sdaMasterReg := true.B
       }
-      when(sclToggleReg) {
+      when(sclReg) {
         sclMasterReg := !sclMasterReg
       }
-      when(sclMasterReg && sclToggleReg){
+      when(sclMasterReg && sclReg){
         val ack= !busSDA()
         when(mctrlb(0)){ masterFSM:= repeatedStartMaster}
         .otherwise{masterFSM:= stopConditionMaster}
@@ -276,12 +282,12 @@ class I2C(p: BaseParams) extends Module {
 
     is(receiveDataMaster) {
       // SHIFT in on RISING edges
-      when(sclMasterReg && sclToggleReg) {
+      when(sclMasterReg && sclReg) {
         val bitIn= busSDA()
         receivedDataReg:= Cat(receivedDataReg(p.dataWidth-2,0), bitIn)
         bitCounter:= bitCounter+1.U
       }
-      when(sclToggleReg) {
+      when(sclReg) {
         sclMasterReg:= !sclMasterReg
       }
       when(arbLost){
@@ -296,12 +302,12 @@ class I2C(p: BaseParams) extends Module {
 
     is(waitAckMasterRx) {
       // always ack => sda=0 on falling
-      when(!sclMasterReg && sclToggleReg){
+      when(!sclMasterReg && sclReg){
         sdaMasterReg:= false.B
         checkArbitration()
       }
-      when(sclToggleReg){ sclMasterReg:= !sclMasterReg}
-      when(sclMasterReg && sclToggleReg){
+      when(sclReg){ sclMasterReg:= !sclMasterReg}
+      when(sclMasterReg && sclReg){
         when(mctrlb(0)){ masterFSM:= repeatedStartMaster}
         .otherwise{masterFSM:= stopConditionMaster}
       }
@@ -314,9 +320,9 @@ class I2C(p: BaseParams) extends Module {
     }
 
     is(stopConditionMaster){
-      when(!sclMasterReg && sclToggleReg){
+      when(!sclMasterReg && sclReg){
         sclMasterReg:= true.B
-      }.elsewhen(sclMasterReg && !sdaMasterReg && sclToggleReg){
+      }.elsewhen(sclMasterReg && !sdaMasterReg && sclReg){
         sdaMasterReg:= true.B
       }.elsewhen(sclMasterReg && sdaMasterReg){
         masterFSM:= idleMaster
@@ -346,7 +352,7 @@ class I2C(p: BaseParams) extends Module {
   val slaveEnabled    = sctrla(0)
 
   def slaveCheckCollision(): Unit = {
-    val busVal= io.sdaIn & io.sdaOut
+    val busVal= io.slave.sdaIn & io.slave.sdaOut
     when(!sdaSlaveReg && busVal===true.B){
       sstatus:= sstatus | "b00100000".U
       slaveFSM:= collisionSlave
@@ -356,7 +362,7 @@ class I2C(p: BaseParams) extends Module {
   switch(slaveFSM) {
     is(idleSlave){
       sstatus:=0.U
-      when(slaveEnabled && !io.sdaIn && io.sclIn){
+      when(slaveEnabled && !io.slave.sdaIn && io.slave.scl){
         slaveFSM:= addressReceiveSlave
         slaveBitCounter:=0.U
         slaveShiftReg:=0.U
@@ -364,11 +370,11 @@ class I2C(p: BaseParams) extends Module {
     }
     is(addressReceiveSlave){
       // SHIFT in on rising edges of sclIn
-      when(io.sclIn){
-        slaveShiftReg:= Cat(slaveShiftReg(p.dataWidth-2,0), (io.sdaIn & io.sdaOut))
+      when(io.slave.scl){
+        slaveShiftReg:= Cat(slaveShiftReg(p.dataWidth-2,0), (io.slave.sdaIn & io.slave.sdaOut))
         slaveBitCounter:= slaveBitCounter+1.U
       }
-      when(slaveBitCounter===7.U && io.sclIn){
+      when(slaveBitCounter===7.U && io.slave.scl){
         slaveFSM:= addressAckSlave
       }
     }
@@ -386,12 +392,12 @@ class I2C(p: BaseParams) extends Module {
       slaveBitCounter:=0.U
     }
     is(dataReceiveSlave){
-      // SHIFT in on rising edges => your code says 'when(io.sclIn)'
-      when(io.sclIn){
-        slaveShiftReg:= Cat(slaveShiftReg(p.dataWidth-2,0), (io.sdaIn & io.sdaOut))
+      // SHIFT in on rising edges => your code says 'when(io.slave.scl)'
+      when(io.slave.scl){
+        slaveShiftReg:= Cat(slaveShiftReg(p.dataWidth-2,0), (io.slave.sdaIn & io.slave.sdaOut))
         slaveBitCounter:= slaveBitCounter+1.U
       }
-      when(slaveBitCounter===7.U && io.sclIn){
+      when(slaveBitCounter===7.U && io.slave.scl){
         slaveFSM:= dataAckSlave
       }
     }
@@ -404,7 +410,7 @@ class I2C(p: BaseParams) extends Module {
     }
     is(dataTransmitSlave){
       // SHIFT out on falling edges
-      when(!io.sclIn){
+      when(!io.slave.scl){
         sdaSlaveReg:= slaveShiftReg(p.dataWidth-1)
         slaveShiftReg:= Cat(slaveShiftReg(p.dataWidth-2,0), 0.U)
         slaveBitCounter:= slaveBitCounter+1.U
@@ -423,7 +429,7 @@ class I2C(p: BaseParams) extends Module {
     is(collisionSlave){
       sdaSlaveReg:=true.B
       sclSlaveReg:=true.B
-      when(io.sdaIn && io.sclIn){
+      when(io.slave.sdaIn && io.slave.scl){
         slaveFSM:= idleSlave
       }
     }
@@ -439,8 +445,8 @@ class I2C(p: BaseParams) extends Module {
   // ------------------------------------------------------------------------
   // Combine (wired-AND)
   // ------------------------------------------------------------------------
-  io.sclOut := sclSlaveReg & sclMasterReg
-  io.sdaOut := sdaSlaveReg & sdaMasterReg
+  io.master.scl := sclSlaveReg & sclMasterReg
+  io.slave.sdaOut := sdaSlaveReg & sdaMasterReg
 
   // Basic interrupt => e.g. if bus error or collision
   io.interrupt := (mstatus & "b11000000".U) =/= 0.U || (sstatus & "b00100000".U) =/= 0.U

@@ -34,7 +34,7 @@ object arbitrationTests {
     // 3) Force collision: The master might want SDA high. 
     // We'll poke sdaIn= false => effectively pulling bus low externally. 
     // This is naive: in a real multi-master test, you'd have a second master driving the line.
-    dut.io.sdaIn.poke(false.B)
+    dut.io.master.sdaIn.poke(false.B)
 
     // Wait enough cycles for design to detect ARB lost
     dut.clock.step(20)
