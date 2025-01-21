@@ -112,6 +112,7 @@ class I2C(p: BaseParams) extends Module {
     io.master.scl := 0.U
     io.master.sdaOut := 0.U
   }
+  io.master.sdaOut := 0.U //Temp
 
   // ------------------------------------------------------------------------
   // Bus Error Detection (Minimal Example)
