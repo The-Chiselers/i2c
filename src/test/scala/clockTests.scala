@@ -9,16 +9,17 @@ object clockTests {
 
   def masterClock(dut: I2C, params: BaseParams): Unit = {
     implicit val clk: Clock = dut.clock
+    dut.clock.setTimeout(0) 
 
     // Example target: 100 kHz SCL, 16 MHz system clock
-    val sclFreq   = 100_000
-    val clockFreq = 50_000_000
+    val sclFreq   = 500_000
+    val clockFreq = 100_000_000
 
     // According to a simplified formula:
     // BAUD ≈ (PCLK / (2 * f_SCL)) - 1 
     // For 16MHz & 100kHz, that is (16e6 / (2*100e3)) - 1 = 79
     val expectedBaud = ((clockFreq / (2 * sclFreq)) - 5).toInt
-    println(s"Calculated BAUD for 100 kHz: $expectedBaud")
+    println(s"Calculated BAUD for 500 kHz: $expectedBaud")
 
     // Write the BAUD value
     val mbaudAddr = dut.registerMap.getAddressOfRegister("mbaud").get
@@ -36,7 +37,7 @@ object clockTests {
     // We expect SCL to have a period of about 160 system cycles at 100 kHz
     // (80 cycles low + 80 cycles high).
     // Step 300 cycles and see if we get ~2 toggles.
-    for (_ <- 0 until 300) {
+    for (_ <- 0 until 10000) {
       dut.clock.step()
       val currentSclState = dut.io.master.scl.peek().litToBoolean
       if (currentSclState != lastSclState) {

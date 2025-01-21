@@ -446,7 +446,7 @@ class I2C(p: BaseParams) extends Module {
   // ------------------------------------------------------------------------
   // Combine (wired-AND)
   // ------------------------------------------------------------------------
-  io.master.scl := sclSlaveReg & sclMasterReg
+  //io.master.scl := sclSlaveReg & sclMasterReg
   io.slave.sdaOut := sdaSlaveReg & sdaMasterReg
 
   // Basic interrupt => e.g. if bus error or collision
