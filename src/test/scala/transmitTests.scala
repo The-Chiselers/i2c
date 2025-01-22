@@ -18,9 +18,9 @@ object transmitTests {
     var matched = false
     for (_ <- 0 until cycles) {
       dut.clock.step(1)
-      if (dut.io.master.sdaOut.peek().litToBoolean == expected) {
-        matched = true
-      }
+      //if (dut.io.master.sdaOut.peek().litToBoolean == expected) {
+      //  matched = true
+      //}
     }
     assert(matched, s"Never observed sdaOut=$expected within $cycles cycles. $msg")
   }

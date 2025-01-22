@@ -125,17 +125,6 @@ class I2C(p: BaseParams) extends Module {
         io.master.scl := false.B
         io.master.sdaOut := 0.U
     }
-
-    //when(stateReg === idle){
-    //    io.master.sdaOut := 1.U
-    //}
-    when(stateReg === masterAddress){
-      io.master.sdaOut := addrShift(p.dataWidth - 1)
-    }.otherwise {
-      io.master.sdaOut := 1.U
-    }
-    io.interrupt := 0.U //Temp
-    io.slave.sdaOut := 0.U //Temp
     
   // ------------------------------------------------------------------------
   // State Machine Operation
@@ -149,6 +138,19 @@ class I2C(p: BaseParams) extends Module {
 
     //Internal Regs
     val rwBit = RegInit(0.U(1.W))
+
+
+        //when(stateReg === idle){
+    //    io.master.sdaOut := 1.U
+    //}
+    when(stateReg === masterAddress){
+      io.master.sdaOut := addrShift(p.dataWidth - 1)
+    }.otherwise {
+      io.master.sdaOut := 1.U
+    }
+    io.interrupt := 0.U //Temp
+    io.slave.sdaOut := 0.U //Temp
+
 
     switch(stateReg) {
         is(idle) {
@@ -172,11 +174,11 @@ class I2C(p: BaseParams) extends Module {
                     when(addrCounter === 7.U){
                         rwBit := addrShift(p.dataWidth - 1)
                     }
+                  addrCounter := addrCounter + 1.U
+                  stateReg := masterAddress
                 }.otherwise {
                     stateReg := wait4Ack
                 }
-                addrCounter := addrCounter + 1.U
-                stateReg := masterAddress
             }
         }
         is(wait4Ack){   //How do we know which slave sent the ACK?
