@@ -2,6 +2,8 @@ package tech.rocksavage.chiselware.I2C
 
 import chisel3._
 import chiseltest._
+import scala.math.pow
+import scala.util.Random
 import tech.rocksavage.chiselware.apb.ApbBundle
 import tech.rocksavage.chiselware.apb.ApbTestUtils._
 
@@ -15,7 +17,11 @@ object receiveTests {
     val maddrReg  = dut.registerMap.getAddressOfRegister("maddr").get
     val mbaudReg  = dut.registerMap.getAddressOfRegister("mbaud").get
     val mctrlaReg = dut.registerMap.getAddressOfRegister("mctrla").get
+    val mdataReg  = dut.registerMap.getAddressOfRegister("mdata").get
+    val masterData = BigInt(params.dataWidth, Random)
+
     writeAPB(dut.io.apb, maddrReg.U, 0xA1.U)
+    writeAPB(dut.io.apb, mdataReg.U, masterData.U)
     writeAPB(dut.io.apb, mbaudReg.U, 2.U)
     writeAPB(dut.io.apb, mctrlaReg.U, 1.U)  // start
 
