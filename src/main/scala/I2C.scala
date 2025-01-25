@@ -120,25 +120,48 @@ class I2C(p: BaseParams) extends Module {
   val stateReg = RegInit(idle)
 
   // ------------------------------------------------------------------------
+  // Divider Module Instantiation
+  // ------------------------------------------------------------------------  
+    val dividerFreq = Module(new Divider())
+    dividerFreq.io.numerator := (p.clkFreq.U * 1000000.U) 
+    dividerFreq.io.denominator := (10.U + 2.U * mbaud)
+    dividerFreq.io.start := 0.U
+
+    val dividerPer = Module(new Divider())
+    dividerPer.io.numerator := 0.U
+    dividerPer.io.denominator := 0.U
+    dividerPer.io.start := 0.U
+
+  // ------------------------------------------------------------------------
   // Baud Rate Generator (Master)
   // ------------------------------------------------------------------------
     val sclCounter    = RegInit(0.U(16.W))
     val sclReg        = RegInit(true.B)
     val prevClk       = RegInit(true.B)
+    val sclPer        = RegInit(0.U(32.W))
 
     when(mctrla(0) === 1.U){
-        val fscl = (p.clkFreq.U * 1000000.U) / (10.U + 2.U * mbaud)
-        val sclPeriod = (p.clkFreq.U * 1000000.U) / (2.U * fscl)
-        when(sclCounter === (sclPeriod - 1.U)) {
-            sclCounter := 0.U
-            sclReg := ~sclReg
-        } .otherwise {
-            sclCounter := sclCounter + 1.U
-        }
-        io.master.scl := sclReg
+      dividerFreq.io.start := 1.U
+      when(dividerFreq.io.valid){
+        dividerPer.io.numerator := (p.clkFreq.U * 1000000.U) 
+        dividerPer.io.denominator := dividerFreq.io.result
+        dividerPer.io.start := 1.U
+      }
+      when(dividerPer.io.valid){
+        sclPer := dividerPer.io.result
+      }
+
+      when(sclCounter === (sclPer - 1.U)) {
+          sclCounter := 0.U
+          sclReg := ~sclReg
+      } .otherwise {
+          sclCounter := sclCounter + 1.U
+      }
+      io.master.scl := sclReg
+      
     }.otherwise {
-        io.master.scl := false.B
-        io.master.sdaOut := 0.U
+      io.master.scl := false.B
+      io.master.sdaOut := 0.U
     }
     
   // ------------------------------------------------------------------------
