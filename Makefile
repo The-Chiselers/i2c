@@ -35,6 +35,10 @@ validate:
 # 	fi; 
 # 	@echo
 
+update:
+	@echo Updating...
+	sbt clean update
+
 # Start with a fresh directory
 clean: 
 	@echo Cleaning
