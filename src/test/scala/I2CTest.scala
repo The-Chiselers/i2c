@@ -173,6 +173,14 @@ class I2CTest
           coverageCollection(cov.getAnnotationSeq, myParams, name)
         }
 
+      case "masterSlaveTransmission" =>
+        it should "transmit data between master and slave" in {
+          val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+            transmitTests.masterSlaveTransmission(dut, myParams)  
+          }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
+        }
+
       // Default
       case _ =>
         runAllTests(myParams) // If unknown test name, run them all

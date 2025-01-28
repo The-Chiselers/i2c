@@ -114,7 +114,7 @@ class I2C(p: BaseParams) extends Module {
   // State Machine Initilization
   // ------------------------------------------------------------------------  
   object State extends ChiselEnum {
-    val idle, masterAddress, wait4Ack, masterWrite, masterRead, stop = Value
+    val idle, masterAddress, slaveAddress, waitAck, sendAck, masterWrite, slaveWrite, masterRead, slaveRead, stop = Value
   }
   import State._
   val stateReg = RegInit(idle)
@@ -122,6 +122,7 @@ class I2C(p: BaseParams) extends Module {
   // ------------------------------------------------------------------------
   // Divider Module Instantiation
   // ------------------------------------------------------------------------  
+  /*
     val dividerFreq = Module(new Divider())
     dividerFreq.io.numerator := (p.clkFreq.U * 1000000.U) 
     dividerFreq.io.denominator := (10.U + 2.U * mbaud)
@@ -131,7 +132,7 @@ class I2C(p: BaseParams) extends Module {
     dividerPer.io.numerator := 0.U
     dividerPer.io.denominator := 0.U
     dividerPer.io.start := 0.U
-
+  */
   // ------------------------------------------------------------------------
   // Baud Rate Generator (Master)
   // ------------------------------------------------------------------------
@@ -139,7 +140,20 @@ class I2C(p: BaseParams) extends Module {
     val sclReg        = RegInit(true.B)
     val prevClk       = RegInit(true.B)
     val sclPer        = RegInit(0.U(32.W))
+    io.master.scl := true.B
 
+    when(mctrla(0) === 1.U){
+        val fscl = (p.clkFreq.U * 1000000.U) / (10.U + 2.U * mbaud)
+        val sclPeriod = (p.clkFreq.U * 1000000.U) / (2.U * fscl)
+        when(sclCounter === (sclPeriod - 1.U)) {
+            sclCounter := 0.U
+            sclReg := ~sclReg
+        } .otherwise {
+            sclCounter := sclCounter + 1.U
+        }
+        io.master.scl := sclReg
+    }
+    /*
     when(mctrla(0) === 1.U){
       dividerFreq.io.start := 1.U
       when(dividerFreq.io.valid){
@@ -163,13 +177,14 @@ class I2C(p: BaseParams) extends Module {
       io.master.scl := false.B
       io.master.sdaOut := 0.U
     }
-    
+    */
   // ------------------------------------------------------------------------
   // State Machine Operation
   // ------------------------------------------------------------------------  
 
     //Internal Regs
     val rwBit = RegInit(0.U(1.W))
+    val idleCount = RegInit(0.U(1.W))
 
     io.interrupt := 0.U //Temp
     io.slave.sdaOut := 0.U //Temp
@@ -177,36 +192,70 @@ class I2C(p: BaseParams) extends Module {
 
     switch(stateReg) {
       is(idle) {
-          io.master.sdaOut := 1.U
-          shiftCounter := 0.U
-          frameCounter := 0.U
-          when(mctrla(0) === 1.U) { // Master Mode
-              sclReg := true.B
-              when(maddrFlag){
-                  io.master.sdaOut := 0.U //Start Condition - Drive SDA Low before SCL switches hi to low
+        //io.master.sdaOut := 1.U
+        shiftCounter := 0.U
+        frameCounter := 0.U
+        when(mctrla(0) === 1.U) { // Master Mode
+            sclReg := true.B
+            when(maddrFlag){
+                io.master.sdaOut := 0.U //Start Condition - Drive SDA Low before SCL switches hi to low
+                idleCount := 1.U
+                stateReg := idle
+                when(idleCount === 1.U) {
                   maddrFlag := false.B
+                  idleCount := 0.U
+                  sclReg := false.B
                   addrShift := maddr  //Load address to shift out to slave
                   stateReg := masterAddress //Go to address shift state
+                }
+            }
+        }
+        when(sctrla(0) === 1.U){
+          when((io.slave.sdaIn === 0.U)) {
+            idleCount := 1.U
+            when(idleCount === 1.U){
+              when(!sclReg){
+                idleCount := 0.U
+                stateReg := slaveAddress
               }
+            }              
           }
+        }
       }
       is(masterAddress){
-          io.master.sdaOut := addrShift(p.dataWidth - 1)
-          prevClk := sclReg
-          when(~prevClk & io.master.scl){
-              when(frameCounter < 8.U) {
-                  addrShift := addrShift(p.dataWidth - 2, 0) ## 0.U
-                  when(frameCounter === 7.U){
-                      rwBit := addrShift(p.dataWidth - 1)
-                  }
-                frameCounter := frameCounter + 1.U
-                stateReg := masterAddress
-              }.otherwise {
-                  stateReg := wait4Ack
+        io.master.sdaOut := addrShift(p.dataWidth - 1)
+        prevClk := sclReg
+        when(~prevClk & io.master.scl){
+          when(frameCounter < 8.U) {
+              addrShift := addrShift(p.dataWidth - 2, 0) ## 0.U
+              when(frameCounter === 7.U){
+                  rwBit := addrShift(p.dataWidth - 1)
               }
+            frameCounter := frameCounter + 1.U
+            stateReg := masterAddress
+          }.otherwise {
+              stateReg := waitAck
           }
+        }
       }
-      is(wait4Ack){   //How do we know which slave sent the ACK?
+      is(slaveAddress){
+        prevClk := io.slave.scl
+        when(~prevClk & io.slave.scl) {  
+          when(frameCounter < 8.U) {          
+            addrShift := addrShift(p.dataWidth - 2, 0) ## io.slave.sdaIn
+            when(frameCounter === 7.U){
+              rwBit := addrShift(p.dataWidth - 1)
+            }
+            frameCounter := frameCounter + 1.U
+            stateReg := slaveAddress
+          }.otherwise{
+            when(saddr === addrShift){
+              stateReg := sendAck
+            }
+          }
+        }
+      }
+      is(waitAck){   //How do we know which slave sent the ACK?
           io.master.sdaOut := 1.U
           prevClk := sclReg   //What happens if we never get ACK?
           frameCounter := 0.U
@@ -219,6 +268,14 @@ class I2C(p: BaseParams) extends Module {
                   }
               }
           }
+      }
+      is(sendAck){
+        io.slave.sdaOut := 0.U
+        when(rwBit === 1.U){
+            stateReg := slaveRead
+        }.otherwise{
+            stateReg := slaveWrite
+        }
       }
       is(masterWrite){
         io.master.sdaOut := i2cShift(p.dataWidth - 1)
@@ -234,7 +291,7 @@ class I2C(p: BaseParams) extends Module {
               sclReg := true.B
               stateReg := stop
             }.otherwise {
-              stateReg := wait4Ack
+              stateReg := waitAck
             }
           }
         }
@@ -253,7 +310,7 @@ class I2C(p: BaseParams) extends Module {
               sclReg := true.B
               stateReg := stop
             }.otherwise {
-              stateReg := wait4Ack
+              stateReg := waitAck
             }
           }
         }          
