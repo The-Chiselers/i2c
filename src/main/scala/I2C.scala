@@ -187,7 +187,7 @@ class I2C(p: BaseParams) extends Module {
     val idleCount = RegInit(0.U(1.W))
 
     io.interrupt := 0.U //Temp
-    io.slave.sdaOut := 0.U //Temp
+    io.slave.sdaOut := 1.U //Temp
     io.master.sdaOut := 1.U //Default Case
 
     switch(stateReg) {
@@ -212,14 +212,14 @@ class I2C(p: BaseParams) extends Module {
         }
         when(sctrla(0) === 1.U){
           when((io.slave.sdaIn === 0.U)) {
-            idleCount := 1.U
-            when(idleCount === 1.U){
-              when(!sclReg){
-                idleCount := 0.U
-                stateReg := slaveAddress
-              }
-            }              
+            idleCount := 1.U             
           }
+          when(idleCount === 1.U){
+            when(!io.slave.scl){
+              idleCount := 0.U
+              stateReg := slaveAddress
+            }
+          } 
         }
       }
       is(masterAddress){
@@ -244,7 +244,7 @@ class I2C(p: BaseParams) extends Module {
           when(frameCounter < 8.U) {          
             addrShift := addrShift(p.dataWidth - 2, 0) ## io.slave.sdaIn
             when(frameCounter === 7.U){
-              rwBit := addrShift(p.dataWidth - 1)
+              rwBit := io.slave.sdaIn
             }
             frameCounter := frameCounter + 1.U
             stateReg := slaveAddress
@@ -271,10 +271,12 @@ class I2C(p: BaseParams) extends Module {
       }
       is(sendAck){
         io.slave.sdaOut := 0.U
-        when(rwBit === 1.U){
-            stateReg := slaveRead
-        }.otherwise{
-            stateReg := slaveWrite
+        when(~prevClk & io.master.scl){
+          when(rwBit === 1.U){
+              stateReg := slaveRead
+          }.otherwise{
+              stateReg := slaveWrite
+          }
         }
       }
       is(masterWrite){

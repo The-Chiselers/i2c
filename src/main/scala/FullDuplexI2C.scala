@@ -2,12 +2,15 @@ package tech.rocksavage.chiselware.I2C
 
 import chisel3._
 import chisel3.util._
+import tech.rocksavage.chiselware.apb.{ApbBundle, ApbParams}
+import tech.rocksavage.chiselware.addrdecode.{AddrDecode, AddrDecodeError, AddrDecodeParams}
+import tech.rocksavage.chiselware.addressable.RegisterMap
 
 class FullDuplexI2C(p: BaseParams) extends Module {
   val io = IO(new Bundle {
     // Expose the master and slave APB interfaces
-    val masterApb = new ApbInterface(p)
-    val slaveApb  = new ApbInterface(p)
+    val masterApb = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
+    val slaveApb  = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     
     // Expose the master and slave SPI interfaces for Full Duplex operation
     val master = new MasterInterface
@@ -32,7 +35,14 @@ class FullDuplexI2C(p: BaseParams) extends Module {
   // Slave -> Master
   master.io.master.sdaIn := slave.io.slave.sdaOut  // Master gets MISO from slave
 
+  master.io.slave.scl := 0.U
+  slave.io.master.sdaIn := 0.U
+  master.io.slave.sdaIn := 0.U
   // Getter methods to access internal SPI modules
   def getMaster: I2C = master
   def getSlave: I2C = slave
+  // Getter methods to access registerMap from the master and slave
+  def getMasterRegisterMap = master.registerMap
+  def getSlaveRegisterMap = slave.registerMap
+
 }

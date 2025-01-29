@@ -2,6 +2,8 @@ package tech.rocksavage.chiselware.I2C
 
 import chisel3._
 import chiseltest._
+import scala.math.pow
+import scala.util.Random
 import tech.rocksavage.chiselware.apb.ApbBundle
 import tech.rocksavage.chiselware.apb.ApbTestUtils._
 
@@ -110,22 +112,29 @@ object transmitTests {
     dut.clock.step(20)
   }
 
-    def masterSlaveTransmission(dut: I2C, params: BaseParams): Unit = {
+    def masterSlaveTransmission(dut: FullDuplexI2C, params: BaseParams): Unit = {
     implicit val clk: Clock = dut.clock
     dut.clock.setTimeout(0) 
 
     // 1) Setup R/W=1 => 0xA1
-    val maddrReg  = dut.registerMap.getAddressOfRegister("maddr").get
-    val mbaudReg  = dut.registerMap.getAddressOfRegister("mbaud").get
-    val mctrlaReg = dut.registerMap.getAddressOfRegister("mctrla").get
-    val mdataReg  = dut.registerMap.getAddressOfRegister("mdata").get
+    val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
+    val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
+    val mctrlaReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
+    val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
+    
+    val sctrlaReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrla").get
+    val saddrReg  = dut.getSlaveRegisterMap.getAddressOfRegister("saddr").get
+
     val masterData = BigInt(params.dataWidth, Random)
+    writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)  // start
+    writeAPB(dut.io.slaveApb, saddrReg.U, 0xa1.U)
 
-    writeAPB(dut.io.apb, maddrReg.U, 0xA1.U)
-    writeAPB(dut.io.apb, mdataReg.U, masterData.U)
-    writeAPB(dut.io.apb, mbaudReg.U, 2.U)
-    writeAPB(dut.io.apb, mctrlaReg.U, 1.U)  // start
+    writeAPB(dut.io.masterApb, maddrReg.U, 0xa1.U)
+    writeAPB(dut.io.masterApb, mdataReg.U, masterData.U)
+    writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
 
+
+    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)  // start
     // Wait ~40 cycles for address phase
     dut.clock.step(1000)
   }
