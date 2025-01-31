@@ -6,39 +6,46 @@ import tech.rocksavage.chiselware.apb.{ApbBundle, ApbParams}
 import tech.rocksavage.chiselware.addrdecode.{AddrDecode, AddrDecodeError, AddrDecodeParams}
 import tech.rocksavage.chiselware.addressable.RegisterMap
 
+
+/**
+  * Main I2C module with:
+  *   - APB register map
+  *   - Master + Slave regs
+  *   - Master SCL clock using Dividers
+  *   - Plain UInt state machine for Master/Slave
+  */
 class I2C(p: BaseParams) extends Module {
   val io = IO(new Bundle {
-    val apb = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
-    val master = new MasterInterface
-    val slave = new SlaveInterface
-    val interrupt = Output(Bool())  // Interrupt
+    val apb       = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
+    val master    = new MasterInterface
+    val slave     = new SlaveInterface
+    val interrupt = Output(Bool())
   })
 
   // ------------------------------------------------------------------------
-  // Register Map
+  // 1) Register Map
   // ------------------------------------------------------------------------
   val registerMap = new RegisterMap(p.regWidth, p.addrWidth)
 
-  //Internal Flags
-  val maddrFlag = RegInit(false.B)
-  
-  // Shift Registers
-  val i2cShift = RegInit(0.U(p.dataWidth.W))
-  val addrShift = RegInit(0.U(8.W))
+  // Internal signals
+  val maddrFlag    = RegInit(false.B)
+  val i2cShift     = RegInit(0.U(p.dataWidth.W))
+  val addrShift    = RegInit(0.U(8.W))
   val shiftCounter = RegInit(0.U((log2Ceil(p.dataWidth) + 1).W))
-  val frameCounter = RegInit(0.U((5.W)))
+  val frameCounter = RegInit(0.U(5.W))
 
-  // Master registers
+  // MASTER REGISTERS
   val mctrla  = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(mctrla,  "mctrla")
 
   val mctrlb  = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(mctrlb,  "mctrlb")
 
-  val mstatus = RegInit(0.U(p.regWidth.W))  // bits for ARBLOST, BUSERR
+  val mstatus = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(mstatus, "mstatus")
 
-  val mbaud   = RegInit(0.U(p.regWidth.W))
+  // We set mbaud = 10 by default to avoid 0 => huge period
+  val mbaud   = RegInit(10.U(p.regWidth.W))
   registerMap.createAddressableRegister(mbaud,   "mbaud")
 
   val maddr   = RegInit(0.U(p.regWidth.W))
@@ -47,14 +54,14 @@ class I2C(p: BaseParams) extends Module {
   val mdata   = RegInit(0.U(p.dataWidth.W))
   registerMap.createAddressableRegister(mdata,   "mdata")
 
-  // Slave registers
+  // SLAVE REGISTERS
   val sctrla    = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(sctrla,    "sctrla")
 
   val sctrlb    = RegInit(0.U(p.regWidth.W))
-  registerMap.createAddressableRegister(sctrlb,    "scrtlb")
+  registerMap.createAddressableRegister(sctrlb,    "sctrlb")
 
-  val sstatus   = RegInit(0.U(p.regWidth.W)) // bits for COLL, BUSERR, etc.
+  val sstatus   = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(sstatus,   "sstatus")
 
   val saddr     = RegInit(0.U(p.regWidth.W))
@@ -67,7 +74,7 @@ class I2C(p: BaseParams) extends Module {
   registerMap.createAddressableRegister(saddrmask, "saddrmask")
 
   // ------------------------------------------------------------------------
-  // AddrDecode Integration
+  // 2) AddrDecode
   // ------------------------------------------------------------------------
   val addrDecodeParams = registerMap.getAddrDecodeParams
   val addrDecode       = Module(new AddrDecode(addrDecodeParams))
@@ -77,32 +84,36 @@ class I2C(p: BaseParams) extends Module {
   addrDecode.io.selInput   := true.B
 
   // ------------------------------------------------------------------------
-  // APB Interface
+  // 3) APB Interface
   // ------------------------------------------------------------------------
   io.apb.PREADY  := (io.apb.PENABLE && io.apb.PSEL)
   io.apb.PSLVERR := (addrDecode.io.errorCode === AddrDecodeError.AddressOutOfRange)
   io.apb.PRDATA  := 0.U
 
+  // APB Read/write
   when(io.apb.PSEL && io.apb.PENABLE) {
     when(io.apb.PWRITE) {
+      // Write
       for (reg <- registerMap.getRegisters) {
         when(addrDecode.io.sel(reg.id)) {
-          when((reg.name == "mdata").B || (reg.name == "sdata").B){
+          if (reg.name == "mdata" || reg.name == "sdata") {
             i2cShift := io.apb.PWDATA
-          }.otherwise{
+          } else {
             reg.writeCallback(addrDecode.io.addrOffset, io.apb.PWDATA)
           }
-          when((reg.name == "maddr").B){
+          // If the user wrote MADDR => we set a flag
+          if (reg.name == "maddr") {
             maddrFlag := true.B
           }
         }
       }
     } .otherwise {
+      // Read
       for (reg <- registerMap.getRegisters) {
         when(addrDecode.io.sel(reg.id)) {
-          when((reg.name == "mdata").B || (reg.name == "sdata").B){
+          if (reg.name == "mdata" || reg.name == "sdata") {
             io.apb.PRDATA := i2cShift
-          }.otherwise {
+          } else {
             io.apb.PRDATA := reg.readCallback(addrDecode.io.addrOffset)
           }
         }
@@ -111,275 +122,348 @@ class I2C(p: BaseParams) extends Module {
   }
 
   // ------------------------------------------------------------------------
-  // State Machine Initilization
-  // ------------------------------------------------------------------------  
-  object State extends ChiselEnum {
-    val idle, 
-    masterAddress, slaveAddress, 
-    waitAckMaster, waitAckSlave, 
-    sendAckMaster, sendAckSlave, 
-    masterWrite, slaveWrite, 
-    masterRead, slaveRead, 
-    sendStop, waitStop = Value
+  // 4) Divider-based Master Clock
+  // ------------------------------------------------------------------------
+  val dividerFreq = Module(new Divider())
+  dividerFreq.io.numerator   := (p.clkFreq.U * 1000000.U)
+  dividerFreq.io.denominator := (10.U + (2.U * mbaud))
+  dividerFreq.io.start       := false.B
+
+  val dividerPer = Module(new Divider())
+  dividerPer.io.numerator   := (p.clkFreq.U * 1000000.U)
+  dividerPer.io.denominator := (2.U * dividerFreq.io.result)
+  dividerPer.io.start       := false.B
+
+  val freqReg       = RegInit(1.U(32.W))
+  val halfPeriodReg = RegInit(1000.U(32.W))
+
+  // Simple 3-state FSM for the two-step division
+  val DIV_IDLE = 0.U
+  val DIV_FREQ = 1.U
+  val DIV_PER  = 2.U
+  val divState = RegInit(DIV_IDLE)
+
+  val lastMbaud    = RegNext(mbaud)
+  val mbaudChanged = RegInit(false.B)
+  when(mbaud =/= lastMbaud) {
+    mbaudChanged := true.B
+  }.otherwise {
+    mbaudChanged := false.B
   }
-  import State._
-  val stateReg = RegInit(idle)
 
-  // ------------------------------------------------------------------------
-  // Divider Module Instantiation
-  // ------------------------------------------------------------------------  
-  /*
-    val dividerFreq = Module(new Divider())
-    dividerFreq.io.numerator := (p.clkFreq.U * 1000000.U) 
-    dividerFreq.io.denominator := (10.U + 2.U * mbaud)
-    dividerFreq.io.start := 0.U
+  val masterEn     = mctrla(0)
+  val lastMasterEn = RegNext(masterEn, false.B)
+  val justEnabled  = masterEn && !lastMasterEn
 
-    val dividerPer = Module(new Divider())
-    dividerPer.io.numerator := 0.U
-    dividerPer.io.denominator := 0.U
-    dividerPer.io.start := 0.U
-  */
-  // ------------------------------------------------------------------------
-  // Baud Rate Generator (Master)
-  // ------------------------------------------------------------------------
-    val sclCounter    = RegInit(0.U(16.W))
-    val sclReg        = RegInit(true.B)
-    val prevClk       = RegInit(true.B)
-    val sclPer        = RegInit(0.U(32.W))
-    io.master.scl := true.B
+  // Debug prints
+  // printf(p"mbaud: $mbaud, mctrla: $mctrla\n")
+  // printf(p"divState: $divState, freqReg: $freqReg, halfPeriodReg: $halfPeriodReg\n")
 
-    when(mctrla(0) === 1.U){
-        val fscl = (p.clkFreq.U * 1000000.U) / (10.U + 2.U * mbaud)
-        val sclPeriod = (p.clkFreq.U * 1000000.U) / (2.U * fscl)
-        when(sclCounter === (sclPeriod - 1.U)) {
-            sclCounter := 0.U
-            sclReg := ~sclReg
-        } .otherwise {
-            sclCounter := sclCounter + 1.U
-        }
-        io.master.scl := sclReg
+  // Inside the FSM logic in I2C.scala
+
+  switch(divState) {
+    is(DIV_IDLE) {
+      when(masterEn && (justEnabled || mbaudChanged)) {
+        printf(p"Transitioning from DIV_IDLE to DIV_FREQ: justEnabled=${justEnabled}, mbaud_changed=${mbaudChanged}\n")
+        dividerFreq.io.start := true.B
+        divState := DIV_FREQ
+      }
     }
-    /*
-    when(mctrla(0) === 1.U){
-      dividerFreq.io.start := 1.U
-      when(dividerFreq.io.valid){
-        dividerPer.io.numerator := (p.clkFreq.U * 1000000.U) 
-        dividerPer.io.denominator := dividerFreq.io.result
-        dividerPer.io.start := 1.U
-      }
-      when(dividerPer.io.valid){
-        sclPer := dividerPer.io.result
-      }
-
-      when(sclCounter === (sclPer - 1.U)) {
-          sclCounter := 0.U
-          sclReg := ~sclReg
+    is(DIV_FREQ) {
+      when(dividerFreq.io.valid) {
+        printf(p"DividerFreq completed: result=${dividerFreq.io.result}\n")
+        freqReg := dividerFreq.io.result
+        dividerPer.io.numerator   := (p.clkFreq.U * 1000000.U)
+        dividerPer.io.denominator := (2.U * dividerFreq.io.result)
+        dividerPer.io.start       := true.B
+        divState := DIV_PER
       } .otherwise {
-          sclCounter := sclCounter + 1.U
+        dividerFreq.io.start := false.B
       }
-      io.master.scl := sclReg
-      
-    }.otherwise {
-      io.master.scl := false.B
-      io.master.sdaOut := 0.U
     }
-    */
+    is(DIV_PER) {
+      when(dividerPer.io.valid) {
+        printf(p"DividerPer completed: result=${dividerPer.io.result}\n")
+        halfPeriodReg := dividerPer.io.result
+        divState := DIV_IDLE
+      } .otherwise {
+        dividerPer.io.start := false.B
+      }
+    }
+  }
+
+  // SCL toggling
+  val sclCounter = RegInit(0.U(32.W))
+  val sclReg     = RegInit(true.B)
+  io.master.scl  := true.B
+
+  when(masterEn) {
+    when(sclCounter >= (halfPeriodReg - 1.U)) {
+      sclCounter := 0.U
+      sclReg     := ~sclReg
+    } .otherwise {
+      sclCounter := sclCounter + 1.U
+    }
+    io.master.scl := sclReg
+  }
+
+  // Debug prints for SCL
+  // printf(p"sclCounter: $sclCounter, sclReg: $sclReg\n")
+
   // ------------------------------------------------------------------------
-  // State Machine Operation
-  // ------------------------------------------------------------------------  
+  // 5) Master/Slave FSM Using UInt States
+  // ------------------------------------------------------------------------
+  val STATE_IDLE          = 0.U
+  val STATE_MASTERADDRESS = 1.U
+  val STATE_SLAVEADDRESS  = 2.U
+  val STATE_WAITACKMASTER = 3.U
+  val STATE_WAITACKSLAVE  = 4.U
+  val STATE_SENDACKMASTER = 5.U
+  val STATE_SENDACKSLAVE  = 6.U
+  val STATE_MASTERWRITE   = 7.U
+  val STATE_SLAVEWRITE    = 8.U
+  val STATE_MASTERREAD    = 9.U
+  val STATE_SLAVEREAD     = 10.U
+  val STATE_SENDSTOP      = 11.U
+  val STATE_WAITSTOP      = 12.U
 
-    //Internal Regs
-    val rwBit = RegInit(0.U(1.W))
-    val ssFlag = RegInit(0.U(1.W))
-    val prevSda = RegInit(0.U(1.W))
+  val stateReg = RegInit(STATE_IDLE)
 
-    io.interrupt := 0.U //Temp
-    io.slave.sdaOut := 1.U //Temp
-    io.master.sdaOut := 1.U //Default Case
+  // Local regs for the FSM
+  val rwBit   = RegInit(0.U(1.W))
+  val ssFlag  = RegInit(0.U(1.W))
+  val prevSda = RegInit(0.U(1.W))
+  val prevClk = RegInit(true.B)
 
-    switch(stateReg) {
-      is(idle) {
-        shiftCounter := 0.U
-        frameCounter := 0.U
-        when(mctrla(0) === 1.U) { // Master Mode
-            sclReg := true.B    //Drive SCL High in IDLE mode
-            when(maddrFlag){  //When Master Address is Written
-                io.master.sdaOut := 0.U //Start Condition - Drive SDA Low before SCL switches hi to low
-                ssFlag := 1.U
-                stateReg := idle
-                when(ssFlag === 1.U) {
-                  maddrFlag := false.B
-                  ssFlag := 0.U
-                  sclReg := false.B   //Drive SCL Low after SDA
-                  addrShift := maddr  //Load address to shift out to slave
-                  stateReg := masterAddress //Go to address shift state
-                }
-            }
-        }
-        when(sctrla(0) === 1.U){
-          when((io.slave.sdaIn === 0.U)) {
-            ssFlag := 1.U  
-            stateReg := idle           
-          }
-          when(ssFlag === 1.U){
-            when(!io.slave.scl){
-              ssFlag := 0.U
-              stateReg := slaveAddress
-            }
-          } 
-        }
-      }
-      is(masterAddress){
-        io.master.sdaOut := addrShift(p.dataWidth - 1)
-        prevClk := sclReg
-        when(~prevClk & io.master.scl){
-          when(frameCounter < 7.U) {
-            addrShift := addrShift(p.dataWidth - 2, 0) ## 0.U
-            frameCounter := frameCounter + 1.U
-            stateReg := masterAddress
-          }.otherwise {
-              rwBit := addrShift(p.dataWidth - 1)
-              stateReg := waitAckMaster
+  // Default signals
+  io.interrupt     := false.B
+  io.master.sdaOut := true.B
+  io.slave.sdaOut  := true.B
+
+  switch(stateReg) {
+    // IDLE
+    is(STATE_IDLE) {
+      shiftCounter := 0.U
+      frameCounter := 0.U
+
+      // Only do a one-time action if *just* entered IDLE from another state, e.g.:
+      // when(previousState =/= STATE_IDLE) { sclReg := true.B }
+
+      // Or simply do nothing with sclReg at all:
+      //   Let the toggling logic handle sclReg.
+      //   If you want SCL to remain high in IDLE, do it only if masterEn = false:
+      when(!masterEn) { sclReg := true.B }
+      // MASTER
+      when(mctrla(0) === 1.U) {
+        when(maddrFlag) {
+          io.master.sdaOut := 0.U
+          ssFlag := 1.U
+          stateReg := STATE_IDLE
+          when(ssFlag === 1.U) {
+            maddrFlag := false.B
+            ssFlag    := 0.U
+            sclReg    := false.B
+            addrShift := maddr
+            stateReg  := STATE_MASTERADDRESS
           }
         }
       }
-      is(slaveAddress){
-        prevClk := io.slave.scl
-        when(~prevClk & io.slave.scl) {  
-          when(frameCounter < 7.U) {          
-            addrShift := addrShift(p.dataWidth - 2, 0) ## io.slave.sdaIn
-            frameCounter := frameCounter + 1.U
-            stateReg := slaveAddress
-          }.otherwise{
-            rwBit := io.slave.sdaIn
-            stateReg := Mux(saddr === addrShift, sendAckSlave, idle)
-          }
+
+      // SLAVE
+      when(sctrla(0) === 1.U) {
+        when(io.slave.sdaIn === 0.U) {
+          ssFlag   := 1.U
+          stateReg := STATE_IDLE
         }
-      }
-      is(waitAckMaster){   //How do we know which slave sent the ACK?
-          prevClk := sclReg   //What happens if we never get ACK?
-          prevSda := io.master.sdaIn
-          frameCounter := 0.U
-          when(~prevClk & io.master.scl){
-              when((prevSda === 1.U) & (io.master.sdaIn === 0.U)) {     //How do we know slave only sent 1 bit ack?
-                stateReg := Mux(rwBit === 1.U, masterWrite, masterRead)
-              }
-          }
-      }
-      is(waitAckSlave){
-        prevClk := io.slave.scl
-        prevSda := io.slave.sdaIn
-        frameCounter := 0.U
-        when(~prevClk & io.slave.scl){
-          when((prevSda === 1.U) & (io.slave.sdaIn === 0.U)) {     //How do we know slave only sent 1 bit ack?
-            stateReg := Mux(rwBit === 1.U, slaveRead, slaveWrite)
-          }
-        }
-      }
-      is(sendAckSlave){
-        prevClk := io.slave.scl
-        io.slave.sdaOut := 0.U
-        frameCounter := 0.U
-        when(~prevClk & io.slave.scl){
-          stateReg := Mux(rwBit === 1.U, slaveRead, slaveWrite)
-        }
-      }
-      is(sendAckMaster){
-        prevClk := sclReg
-        io.master.sdaOut := 0.U
-        frameCounter := 0.U
-        when(~prevClk & io.master.scl){
-          stateReg := Mux(rwBit === 1.U, masterWrite, masterRead)
-        }
-      }
-      is(masterWrite){
-        io.master.sdaOut := i2cShift(p.dataWidth - 1)
-        prevClk := sclReg
-        when(~prevClk & io.master.scl) {
-          when(frameCounter < 8.U){
-            i2cShift := i2cShift(p.dataWidth - 2, 0) ## 0.U
-            frameCounter := frameCounter + 1.U
-            shiftCounter := shiftCounter + 1.U
-            stateReg := masterWrite
-          }.otherwise{
-            when(shiftCounter === p.dataWidth.U){ //When should we send stop condition?
-              sclReg := true.B
-              stateReg := sendStop
-            }.otherwise {
-              stateReg := waitAckMaster
-            }
-          }
-        }
-      }
-      is(slaveWrite) {
-        io.slave.sdaOut := i2cShift(p.dataWidth - 1)
-        prevClk := io.slave.scl
-        when(~prevClk & io.slave.scl) {
-          when(frameCounter < 8.U){
-            i2cShift := i2cShift(p.dataWidth - 2, 0) ## 0.U
-            frameCounter := frameCounter + 1.U
-            shiftCounter := shiftCounter + 1.U
-            stateReg := slaveWrite
-          }.otherwise{
-            when(shiftCounter === p.dataWidth.U){
-              stateReg := waitStop
-            }.otherwise {
-              stateReg := waitAckSlave
-            }
-          }
-        }     
-      }
-      is(masterRead){
-        prevClk := sclReg
-        when(~prevClk & io.master.scl) {
-          when(frameCounter < 8.U){
-            i2cShift := i2cShift(p.dataWidth - 2, 0) ## io.master.sdaIn
-            frameCounter := frameCounter + 1.U
-            shiftCounter := shiftCounter + 1.U
-            stateReg := masterRead
-          }.otherwise{
-            when(shiftCounter === p.dataWidth.U){
-              sclReg := true.B
-              stateReg := sendStop
-            }.otherwise {
-              stateReg := sendAckMaster
-            }
-          }
-        }          
-      }
-      is(slaveRead){
-        prevClk := io.slave.scl
-        when(~prevClk & io.slave.scl) {
-          when(frameCounter < 8.U){
-            i2cShift := i2cShift(p.dataWidth - 2, 0) ## io.slave.sdaIn
-            frameCounter := frameCounter + 1.U
-            shiftCounter := shiftCounter + 1.U
-            stateReg := slaveRead
-          }.otherwise{
-            when(shiftCounter === p.dataWidth.U){
-              stateReg := waitStop
-            }.otherwise {
-              stateReg := sendAckSlave
-            }
-          }
-        }          
-      }
-      is(sendStop){
-          io.master.sdaOut := 1.U
-          sclReg := true.B
-          stateReg := idle
-      }
-      is(waitStop){
-        when(io.slave.scl) {
-          ssFlag := 1.U     
-          stateReg := waitStop       
-        }
-        when(ssFlag === 1.U){
-          when(io.slave.sdaIn === 1.U){
-            ssFlag := 0.U
-            stateReg := idle
+        when(ssFlag === 1.U) {
+          when(!io.slave.scl) {
+            ssFlag   := 0.U
+            stateReg := STATE_SLAVEADDRESS
           }
         }
       }
     }
+
+    // MASTER ADDRESS SHIFT
+    is(STATE_MASTERADDRESS) {
+      io.master.sdaOut := addrShift(p.dataWidth - 1)
+      prevClk := sclReg
+      when(~prevClk & io.master.scl) {
+        when(frameCounter < 7.U) {
+          addrShift   := addrShift(p.dataWidth - 2, 0) ## 0.U
+          frameCounter := frameCounter + 1.U
+          stateReg    := STATE_MASTERADDRESS
+        }.otherwise {
+          rwBit := addrShift(p.dataWidth - 1)
+          stateReg := STATE_WAITACKMASTER
+        }
+      }
+    }
+
+    // SLAVE ADDRESS SHIFT
+    is(STATE_SLAVEADDRESS) {
+      prevClk := io.slave.scl
+      when(~prevClk & io.slave.scl) {
+        when(frameCounter < 7.U) {
+          addrShift   := addrShift(p.dataWidth - 2, 0) ## io.slave.sdaIn
+          frameCounter := frameCounter + 1.U
+          stateReg    := STATE_SLAVEADDRESS
+        }.otherwise {
+          rwBit := io.slave.sdaIn
+          // Compare with saddr => ack if match
+          when(saddr === addrShift) {
+            stateReg := STATE_SENDACKSLAVE
+          } .otherwise {
+            stateReg := STATE_IDLE
+          }
+        }
+      }
+    }
+
+    // WAIT ACK MASTER
+    is(STATE_WAITACKMASTER) {
+      prevClk := sclReg
+      prevSda := io.master.sdaIn
+      frameCounter := 0.U
+      when(~prevClk & io.master.scl) {
+        when((prevSda === 1.U) && (io.master.sdaIn === 0.U)) {
+          // got ACK
+          stateReg := Mux(rwBit === 1.U, STATE_MASTERWRITE, STATE_MASTERREAD)
+        }
+      }
+    }
+
+    // WAIT ACK SLAVE
+    is(STATE_WAITACKSLAVE) {
+      prevClk := io.slave.scl
+      prevSda := io.slave.sdaIn
+      frameCounter := 0.U
+      when(~prevClk & io.slave.scl) {
+        when((prevSda === 1.U) && (io.slave.sdaIn === 0.U)) {
+          stateReg := Mux(rwBit === 1.U, STATE_SLAVEREAD, STATE_SLAVEWRITE)
+        }
+      }
+    }
+
+    // SEND ACK SLAVE
+    is(STATE_SENDACKSLAVE) {
+      prevClk := io.slave.scl
+      io.slave.sdaOut := 0.U
+      frameCounter := 0.U
+      when(~prevClk & io.slave.scl) {
+        stateReg := Mux(rwBit === 1.U, STATE_SLAVEREAD, STATE_SLAVEWRITE)
+      }
+    }
+
+    // SEND ACK MASTER
+    is(STATE_SENDACKMASTER) {
+      prevClk := sclReg
+      io.master.sdaOut := 0.U
+      frameCounter := 0.U
+      when(~prevClk & io.master.scl) {
+        stateReg := Mux(rwBit === 1.U, STATE_MASTERWRITE, STATE_MASTERREAD)
+      }
+    }
+
+    // MASTER WRITE
+    is(STATE_MASTERWRITE) {
+      io.master.sdaOut := i2cShift(p.dataWidth - 1)
+      prevClk := sclReg
+      when(~prevClk & io.master.scl) {
+        when(frameCounter < 8.U) {
+          i2cShift    := i2cShift(p.dataWidth - 2, 0) ## 0.U
+          frameCounter := frameCounter + 1.U
+          shiftCounter := shiftCounter + 1.U
+          stateReg    := STATE_MASTERWRITE
+        }.otherwise {
+          when(shiftCounter === p.dataWidth.U) {
+            sclReg := true.B
+            stateReg := STATE_SENDSTOP
+          } .otherwise {
+            stateReg := STATE_WAITACKMASTER
+          }
+        }
+      }
+    }
+
+    // SLAVE WRITE
+    is(STATE_SLAVEWRITE) {
+      io.slave.sdaOut := i2cShift(p.dataWidth - 1)
+      prevClk := io.slave.scl
+      when(~prevClk & io.slave.scl) {
+        when(frameCounter < 8.U) {
+          i2cShift    := i2cShift(p.dataWidth - 2, 0) ## 0.U
+          frameCounter := frameCounter + 1.U
+          shiftCounter := shiftCounter + 1.U
+          stateReg    := STATE_SLAVEWRITE
+        }.otherwise {
+          when(shiftCounter === p.dataWidth.U) {
+            stateReg := STATE_WAITSTOP
+          } .otherwise {
+            stateReg := STATE_WAITACKSLAVE
+          }
+        }
+      }
+    }
+
+    // MASTER READ
+    is(STATE_MASTERREAD) {
+      prevClk := sclReg
+      when(~prevClk & io.master.scl) {
+        when(frameCounter < 8.U) {
+          i2cShift    := i2cShift(p.dataWidth - 2, 0) ## io.master.sdaIn
+          frameCounter := frameCounter + 1.U
+          shiftCounter := shiftCounter + 1.U
+          stateReg    := STATE_MASTERREAD
+        }.otherwise {
+          when(shiftCounter === p.dataWidth.U) {
+            sclReg := true.B
+            stateReg := STATE_SENDSTOP
+          } .otherwise {
+            stateReg := STATE_SENDACKMASTER
+          }
+        }
+      }
+    }
+
+    // SLAVE READ
+    is(STATE_SLAVEREAD) {
+      prevClk := io.slave.scl
+      when(~prevClk & io.slave.scl) {
+        when(frameCounter < 8.U) {
+          i2cShift    := i2cShift(p.dataWidth - 2, 0) ## io.slave.sdaIn
+          frameCounter := frameCounter + 1.U
+          shiftCounter := shiftCounter + 1.U
+          stateReg    := STATE_SLAVEREAD
+        }.otherwise {
+          when(shiftCounter === p.dataWidth.U) {
+            stateReg := STATE_WAITSTOP
+          } .otherwise {
+            stateReg := STATE_SENDACKSLAVE
+          }
+        }
+      }
+    }
+
+    // MASTER SEND STOP
+    is(STATE_SENDSTOP) {
+      io.master.sdaOut := 1.U
+      sclReg := true.B
+      stateReg := STATE_IDLE
+    }
+
+    // SLAVE WAIT STOP
+    is(STATE_WAITSTOP) {
+      when(io.slave.scl) {
+        ssFlag := 1.U
+        stateReg := STATE_WAITSTOP
+      }
+      when(ssFlag === 1.U) {
+        when(io.slave.sdaIn === 1.U) {
+          ssFlag := 0.U
+          stateReg := STATE_IDLE
+        }
+      }
+    }
+  }
 }

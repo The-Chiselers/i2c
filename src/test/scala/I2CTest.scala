@@ -70,10 +70,9 @@ class I2CTest
     behavior of name
 
     // Example I2C parameters
-    val myParams = BaseParams(dataWidth = 8, addrWidth = 16, regWidth = 8, clkFreq = 50, coverage = false)
+    val myParams = BaseParams(dataWidth = 8, addrWidth = 16, regWidth = 8, clkFreq = 100, coverage = false)
     info(s"Data Width: ${myParams.dataWidth}, Address Width: ${myParams.addrWidth}")
     info("--------------------------------")
-
 
     name match {
       // Basic clock test
@@ -82,6 +81,24 @@ class I2CTest
           val cov = test(new I2C(myParams))
             .withAnnotations(backendAnnotations) { dut =>
               clockTests.masterClock(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
+        }
+
+      case "dividerBasic" =>
+        it should "verify the Divider-based I2C clock generation in a simple scenario" in {
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              clockTests.dividerBasicCheck(dut, myParams)
+            }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
+        }
+
+      case "dividerRandom" =>
+        it should "verify random BAUD values do produce toggles" in {
+          val cov = test(new I2C(myParams))
+            .withAnnotations(backendAnnotations) { dut =>
+              clockTests.dividerRandomCheck(dut, myParams)
             }
           coverageCollection(cov.getAnnotationSeq, myParams, name)
         }
@@ -202,6 +219,20 @@ class I2CTest
         clockTests.masterClock(dut, myParams)
       }
       coverageCollection(cov.getAnnotationSeq, myParams, "masterClock")
+    }
+
+    it should "verify the Divider-based I2C clock generation in a simple scenario" in {
+      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        clockTests.dividerBasicCheck(dut, myParams)
+      }
+      coverageCollection(cov.getAnnotationSeq, myParams, "dividerBasic")
+    }
+
+    it should "verify random BAUD values do produce toggles" in {
+      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        clockTests.dividerRandomCheck(dut, myParams)
+      }
+      coverageCollection(cov.getAnnotationSeq, myParams, "dividerRandom")
     }
   }
 

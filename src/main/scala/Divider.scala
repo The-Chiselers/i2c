@@ -6,51 +6,52 @@ import tech.rocksavage.chiselware.apb.{ApbBundle, ApbParams}
 import tech.rocksavage.chiselware.addrdecode.{AddrDecode, AddrDecodeError, AddrDecodeParams}
 import tech.rocksavage.chiselware.addressable.RegisterMap
 
-class Divider() extends Module {
+
+// A 32-bit unsigned integer divider with a simple iterative algorithm.
+// You supply (numerator, denominator, start=1) and wait until valid=1.
+class Divider extends Module {
   val io = IO(new Bundle {
-    val numerator   = Input(UInt(32.W))   // Dividend
+    val numerator   = Input(UInt(32.W))  // Dividend
     val denominator = Input(UInt(32.W))  // Divisor
-    val start       = Input(Bool())            // Start signal
+    val start       = Input(Bool())      // Start signal
     val result      = Output(UInt(32.W)) // Quotient
     val remainder   = Output(UInt(32.W)) // Remainder
-    val valid       = Output(Bool())           // Valid signal to indicate result is ready
+    val valid       = Output(Bool())     // High => 'result' is valid
   })
 
   // Internal registers
   val quotient   = RegInit(0.U(32.W))
   val remainder  = RegInit(0.U(32.W))
-  val counter    = RegInit(0.U(log2Ceil(32 + 1).W))
+  val counter    = RegInit(0.U(log2Ceil(32 + 1).W))  // up to 32
   val busy       = RegInit(false.B)
-  val validReg   = RegInit(false.B) // Register to hold the valid signal
-
-  // Wires for calculations
-  val subtractResult = Wire(UInt(32.W))
-  subtractResult := remainder - (io.denominator << (counter - 1.U))
 
   // Default outputs
-  io.result := quotient
+  io.result    := quotient
   io.remainder := remainder
-  io.valid := !busy
+  io.valid     := !busy
 
+  // Start condition
   when(io.start && !busy) {
-    // Start the division process
-    quotient := 0.U
+    quotient  := 0.U
     remainder := io.numerator
-    counter := 32.U
-    busy := true.B
+    counter   := 32.U   // do up to 32 iterations
+    busy      := true.B
   }
 
+  // Iterative division
   when(busy) {
     when(counter > 0.U) {
-      // Perform division step
-      val canSubtract = subtractResult(32 - 1) === 0.U // Check if subtraction is valid
-      when(canSubtract) {
-        remainder := subtractResult
-        quotient := quotient | (1.U << (counter - 1.U)) // Set the corresponding bit in the quotient
+      // Shift comparator:
+      val shiftedDenom = io.denominator << (counter - 1.U)
+      // If remainder >= shiftedDenominator, subtract and set that bit of quotient
+      when(remainder >= shiftedDenom) {
+        remainder := remainder - shiftedDenom
+        quotient  := quotient  | (1.U << (counter - 1.U))
       }
       counter := counter - 1.U
-    }.otherwise {
-      // Division is complete
+    }
+    .otherwise {
+      // Done
       busy := false.B
     }
   }
