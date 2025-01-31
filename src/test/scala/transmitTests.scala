@@ -127,7 +127,7 @@ object transmitTests {
 
     val masterData = BigInt(params.dataWidth, Random)
     writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)  // start
-    writeAPB(dut.io.slaveApb, saddrReg.U, 0xa1.U)
+    writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)
 
     writeAPB(dut.io.masterApb, maddrReg.U, 0xa1.U)
     writeAPB(dut.io.masterApb, mdataReg.U, masterData.U)

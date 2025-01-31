@@ -295,6 +295,7 @@ class I2C(p: BaseParams) extends Module {
           stateReg    := STATE_MASTERADDRESS
         }.otherwise {
           rwBit := addrShift(p.dataWidth - 1)
+          prevSda := io.master.sdaIn
           stateReg := STATE_WAITACKMASTER
         }
       }
@@ -323,9 +324,9 @@ class I2C(p: BaseParams) extends Module {
     // WAIT ACK MASTER
     is(STATE_WAITACKMASTER) {
       prevClk := sclReg
-      prevSda := io.master.sdaIn
       frameCounter := 0.U
       when(~prevClk & io.master.scl) {
+        prevSda := io.master.sdaIn
         when((prevSda === 1.U) && (io.master.sdaIn === 0.U)) {
           // got ACK
           stateReg := Mux(rwBit === 1.U, STATE_MASTERWRITE, STATE_MASTERREAD)
@@ -336,9 +337,9 @@ class I2C(p: BaseParams) extends Module {
     // WAIT ACK SLAVE
     is(STATE_WAITACKSLAVE) {
       prevClk := io.slave.scl
-      prevSda := io.slave.sdaIn
       frameCounter := 0.U
       when(~prevClk & io.slave.scl) {
+        prevSda := io.slave.sdaIn
         when((prevSda === 1.U) && (io.slave.sdaIn === 0.U)) {
           stateReg := Mux(rwBit === 1.U, STATE_SLAVEREAD, STATE_SLAVEWRITE)
         }
@@ -380,6 +381,7 @@ class I2C(p: BaseParams) extends Module {
             sclReg := true.B
             stateReg := STATE_SENDSTOP
           } .otherwise {
+            prevSda := io.master.sdaIn
             stateReg := STATE_WAITACKMASTER
           }
         }
@@ -400,6 +402,7 @@ class I2C(p: BaseParams) extends Module {
           when(shiftCounter === p.dataWidth.U) {
             stateReg := STATE_WAITSTOP
           } .otherwise {
+            prevSda := io.slave.sdaIn
             stateReg := STATE_WAITACKSLAVE
           }
         }
