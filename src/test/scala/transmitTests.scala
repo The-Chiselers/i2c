@@ -6,6 +6,7 @@ import scala.math.pow
 import scala.util.Random
 import tech.rocksavage.chiselware.apb.ApbBundle
 import tech.rocksavage.chiselware.apb.ApbTestUtils._
+import org.scalatest.Assertions.fail
 
 object transmitTests {
 
@@ -26,117 +27,384 @@ object transmitTests {
     }
     assert(matched, s"Never observed sdaOut=$expected within $cycles cycles. $msg")
   }
-
-  def masterAddressTransmit(dut: I2C, params: BaseParams): Unit = {
+  
+  /**
+    * A demonstration test that configures a slave with address=0x50 and data=0x5A,
+    * then configures the master to read from 0x50 (R/W=1 => 0xA1).
+    *
+    * Instead of stepping many cycles in one block, we step single cycles ~200-300 times
+    * so that the master's internally generated SCL occurs in "real time," letting the FSM
+    * shift bits properly.
+    */
+  def masterSlaveTransmission(dut: FullDuplexI2C, params: BaseParams): Unit = {
     implicit val clk: Clock = dut.clock
+    dut.clock.setTimeout(0)
 
-    // 1) Write a small baud so each bit is ~2 cycles
-    val mbaudAddr = dut.registerMap.getAddressOfRegister("mbaud").get
-    writeAPB(dut.io.apb, mbaudAddr.U, 2.U)
+    // --- Configure the Slave ---
+    val sctrlaReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrla").get
+    val saddrReg  = dut.getSlaveRegisterMap.getAddressOfRegister("saddr").get
+    val sdataReg  = dut.getSlaveRegisterMap.getAddressOfRegister("sdata").get
 
-    // 2) Set up address
-    val slaveAddress = 0x50
-    val writeFlag = 0
-    val combinedAddress = (slaveAddress << 1) | writeFlag
+    // Put some known data into the slave's SDATA register (0x5A).
+    val slaveData = 0xAB
+    writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)        // enable the slave
+    writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)      // slave address = 0x50
+    writeAPB(dut.io.slaveApb, sdataReg.U, slaveData.U) // put 0x5A in SDATA
 
-    val maddrAddr = dut.registerMap.getAddressOfRegister("maddr").get
-    writeAPB(dut.io.apb, maddrAddr.U, combinedAddress.U)
-
-    // 3) Master enable + start
-    val mctrlaAddr = dut.registerMap.getAddressOfRegister("mctrla").get
-    // Suppose bit0 => start
-    // bit7 => enable master, for instance
-    writeAPB(dut.io.apb, mctrlaAddr.U, "b10000001".U)
-
-    // 4) We expect SDA to go low for start eventually
-    stepAndCheckSDA(dut, 20, expected=false, "Check start condition")
-
-    // 5) Wait enough cycles for 8 bits + 1 ack => ~9 bits => 9 * 4 cycles => 36
-    dut.clock.step(36)
-    // We won't do a direct bit-by-bit check here, just ensure we see an ack in waitAckMasterAddr
-    // The code in i2c.scala sets sdaOut=1 and reads sdaIn for ack, so sdaOut might be high if we do not see real slave ack.
-    // For now, let's just assert no crash. 
-  }
-
-  def masterDataTransmit(dut: I2C, params: BaseParams): Unit = {
-    implicit val clk: Clock = dut.clock
-
-    // 1) again set small baud
-    val mbaudAddr = dut.registerMap.getAddressOfRegister("mbaud").get
-    writeAPB(dut.io.apb, mbaudAddr.U, 2.U)
-
-    // 2) set data
-    val data = 0xA5
-    val mdataAddr = dut.registerMap.getAddressOfRegister("mdata").get
-    writeAPB(dut.io.apb, mdataAddr.U, data.U)
-
-    // 3) Master enable + start
-    val mctrlaAddr = dut.registerMap.getAddressOfRegister("mctrla").get
-    writeAPB(dut.io.apb, mctrlaAddr.U, "b00000001".U)
-
-    // 4) Wait for the 8 data bits + ack
-    dut.clock.step(36)
-    // Again, we skip a direct bit check; real tests would track SCL edges
-  }
-
-  def slaveAddressTransmit(dut: I2C, params: BaseParams): Unit = {
-    implicit val clk: Clock = dut.clock
-
-    // We want the slave to transmit, but that normally requires the master to do R/W=1.
-    // For a simpler demo, let's forcibly set the slave into dataTransmit state.
-    val saddrAddr = dut.registerMap.getAddressOfRegister("saddr").get
-    writeAPB(dut.io.apb, saddrAddr.U, 0x50.U)
-
-    val sctrlaAddr = dut.registerMap.getAddressOfRegister("sctrla").get
-    // bit0 => slave enable
-    writeAPB(dut.io.apb, sctrlaAddr.U, "b00000001".U)
-
-    // For real I2C, a master would do the start + read address (bit0=1).
-    // We'll skip that part and just confirm the slave can shift something out if we force it.
-    // This is not a fully correct test, but outlines the approach.
-    dut.clock.step(10) // no actual check here
-  }
-
-  def slaveDataTransmit(dut: I2C, params: BaseParams): Unit = {
-    implicit val clk: Clock = dut.clock
-
-    val data = 0xA5
-    val sdataAddr = dut.registerMap.getAddressOfRegister("sdata").get
-    writeAPB(dut.io.apb, sdataAddr.U, data.U)
-
-    val sctrlaAddr = dut.registerMap.getAddressOfRegister("sctrla").get
-    writeAPB(dut.io.apb, sctrlaAddr.U, "b00000001".U) // Enable slave
-
-    // In a real scenario, the slave waits for the master to read from it.
-    // For demonstration, we forcibly put the slave FSM into dataTransmitSlave or rely on address + R/W=1 logic.
-    dut.clock.step(20)
-  }
-
-    def masterSlaveTransmission(dut: FullDuplexI2C, params: BaseParams): Unit = {
-    implicit val clk: Clock = dut.clock
-    dut.clock.setTimeout(0) 
-
-    // 1) Setup R/W=1 => 0xA1
+    // --- Configure the Master ---
     val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
     val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
     val mctrlaReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
     val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
-    
+
+    // We'll do a read transaction => (slave address=0x50, R/W=1 => 0xA1)
+    writeAPB(dut.io.masterApb, maddrReg.U, 0xA1.U)
+    // The master's MDATA can be any dummy initially
+    writeAPB(dut.io.masterApb, mdataReg.U, 0x00.U)
+    // Set a small BAUD => For example 2 => halfPeriod ~ 7 cycles => full period ~14
+    writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
+    // Start the master
+    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)
+
+    // --- Step the clock "slowly" in single increments
+    for(_ <- 0 until 300) {
+      dut.clock.step(1)
+    }
+
+    // --- Read back the master's data register
+    val masterReceived = readAPB(dut.io.masterApb, mdataReg.U).toInt
+    // We expect it to match slaveData (0x5A)
+    assert(
+      masterReceived == slaveData,
+      f"Master received 0x$masterReceived%02X, expected 0x$slaveData%02X"
+    )
+  }
+
+  /**
+    * Waits for one rising edge on master.scl.
+    * Steps the system clock until the master.scl signal transitions from false to true.
+    * Debug messages print the cycle count and signal value.
+    * If no rising edge is detected within maxCycles, the test will fail.
+    */
+  def waitForRisingEdgeOnMasterSCL(dut: FullDuplexI2C, maxCycles: Int = 1000)
+                                  (implicit clk: Clock): Unit = {
+    var prevScl = dut.io.master.scl.peekBoolean()
+    var cycles  = 0
+    println(s"[DEBUG] (waitForRisingEdge) Initial master.scl: $prevScl")
+    while (cycles < maxCycles) {
+      dut.clock.step(1)
+      val nowScl = dut.io.master.scl.peekBoolean()
+      // Debug print every 50 cycles
+      if (cycles % 50 == 0) {
+        println(s"[DEBUG] (waitForRisingEdge) Cycle $cycles, master.scl: $nowScl")
+      }
+      if (!prevScl && nowScl) {
+        println(s"[DEBUG] (waitForRisingEdge) Rising edge detected at cycle $cycles, master.scl: $nowScl")
+        return
+      }
+      prevScl = nowScl
+      cycles += 1
+    }
+    // If no rising edge is detected, fail the test.
+    assert(false, s"Timed out waiting for rising edge on master.scl after $cycles cycles")
+  }
+
+  /**
+    * Test function for Master Write → Slave Read in FullDuplexI2C.
+    *
+    * In this configuration (Option C with master in normal mode and slave in test mode),
+    * the master submodule drives SCL internally while the slave does not drive SCL.
+    * The slave's SCL input is wired to the master's SCL output.
+    *
+    * This test uses the helper waitForRisingEdgeOnMasterSCL to synchronize to the master_scl toggles.
+    */
+  def masterWriteSlaveReadFullDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
+    implicit val clk: Clock = dut.clock
+    dut.clock.setTimeout(0)
+
+    // --- Configure SLAVE registers ---
     val sctrlaReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrla").get
     val saddrReg  = dut.getSlaveRegisterMap.getAddressOfRegister("saddr").get
+    val sdataReg  = dut.getSlaveRegisterMap.getAddressOfRegister("sdata").get
 
-    val masterData = BigInt(params.dataWidth, Random)
-    writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)  // start
-    writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)
+    // println("[DEBUG] Configuring slave registers:")
+    writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)     // enable slave
+    writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)    // slave address = 0x50
 
-    writeAPB(dut.io.masterApb, maddrReg.U, 0xa1.U)
+    // --- Configure MASTER registers ---
+    val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
+    val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
+    val mctrlaReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
+    val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
+
+    val masterData = 0xAB
+    // println(s"[DEBUG] Configuring master registers: masterData = 0x${masterData.toHexString}")
+    writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)   // 0x50 + R/W=0
+    writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)      // small BAUD => ~7 cycles per half period
+    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)     // enable master
+    dut.clock.step(100)
     writeAPB(dut.io.masterApb, mdataReg.U, masterData.U)
+    dut.clock.step(1)
+
+    // --- Wait for rising edges on master.scl ---
+    // Estimate the number of rising edges needed for the transaction.
+    // For one byte write: address (8 bits) + ACK, data (8 bits) + ACK, plus STOP.
+    // Waiting for ~30 rising edges should be more than sufficient.
+    val edgesToWait = 30
+    println(s"[DEBUG] Waiting for $edgesToWait rising edges on master.scl")
+    for (edge <- 0 until edgesToWait) {
+      waitForRisingEdgeOnMasterSCL(dut, maxCycles = 1000)
+      println(s"[DEBUG] Completed rising edge number $edge")
+    }
+
+    // --- Read the slave's sdata register ---
+    val gotData = readAPB(dut.io.slaveApb, sdataReg.U).toInt
+    println(s"[DEBUG] Final: Slave sdata read = 0x${gotData.toHexString}, expected = 0x${masterData.toHexString}")
+    assert(gotData == masterData, f"Slave read 0x$gotData%02X, expected 0x$masterData%02X")
+  }
+
+  /**
+  * bidirectionalHalfDuplex
+  *
+  * This test performs a bidirectional (half-duplex) transaction.
+  * In phase 1, the master writes data (0xAB) to the slave (slave reads it).
+  * In phase 2, the slave writes a new data byte (0xCD) and the master reads it.
+  *
+  * This test reuses the ideas from the previously working tests:
+  *   - It uses APB register accesses to configure master and slave.
+  *   - It synchronizes with the internal master SCL using waitForRisingEdgeOnMasterSCL.
+  */
+def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
+  implicit val clk: Clock = dut.clock
+  dut.clock.setTimeout(0)
+
+  // ---------------------------
+  // PHASE 1: Master Write → Slave Read
+  // ---------------------------
+  // Configure the slave registers for receiving:
+  val sctrlaReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrla").get
+  val saddrReg  = dut.getSlaveRegisterMap.getAddressOfRegister("saddr").get
+  val sdataReg  = dut.getSlaveRegisterMap.getAddressOfRegister("sdata").get
+
+  // Enable the slave and set its address to 0x50.
+  writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)
+  writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)
+
+  // Configure the master for a write transaction:
+  // (The transmitted address should be 0x50 with R/W=0 → 0xA0)
+  val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
+  val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
+  val mctrlaReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
+  val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
+
+  val masterData1 = 0xAB
+  // Write the address (0xA0) and then start the master.
+  writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)
+  writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
+  writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)
+  // Let the transaction begin; wait a short time.
+  dut.clock.step(100)
+  // Write the data to be transmitted.
+  writeAPB(dut.io.masterApb, mdataReg.U, masterData1.U)
+  dut.clock.step(1)
+  
+  // Wait for enough rising edges for the transaction to complete.
+  val edgesToWait1 = 30
+  println(s"[DEBUG] Phase 1: Waiting for $edgesToWait1 rising edges on master.scl")
+  for (edge <- 0 until edgesToWait1) {
+    waitForRisingEdgeOnMasterSCL(dut, maxCycles = 1000)
+    // Optionally, print debug info per edge:
+    // println(s"[DEBUG] Phase 1: Completed rising edge number $edge")
+  }
+  
+  // Read the slave's data register
+  val slaveReceived = readAPB(dut.io.slaveApb, sdataReg.U).toInt
+  println(s"[DEBUG] Phase 1: Slave received = 0x${slaveReceived.toHexString}, expected = 0x${masterData1.toHexString}")
+  assert(slaveReceived == masterData1,
+    f"Phase 1 failed: Slave received 0x$slaveReceived%02X, expected 0x$masterData1%02X")
+
+  // ---------------------------
+  // PHASE 2: Slave Write → Master Read
+  // ---------------------------
+  // Reconfigure the slave for transmitting:
+  // (Keep the same slave address, but now preload its sdata register with new data)
+  val slaveData2 = 0xCD
+  writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)         // ensure slave is enabled
+  writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)         // same slave address
+  writeAPB(dut.io.slaveApb, sdataReg.U, slaveData2.U)   // preload slave data for transmission
+
+  // Reconfigure the master for a read transaction:
+  // For a read, the address should be (0x50 with R/W=1) → 0xA1.
+  writeAPB(dut.io.masterApb, maddrReg.U, 0xA1.U)
+  // Clear master's mdata (dummy initial value)
+  writeAPB(dut.io.masterApb, mdataReg.U, 0x00.U)
+  // Ensure BAUD is still 2.
+  writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
+  // Start the master for the read transaction.
+  writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)
+  
+  // Wait for the read transaction to complete by waiting for rising edges.
+  val edgesToWait2 = 30
+  println(s"[DEBUG] Phase 2: Waiting for $edgesToWait2 rising edges on master.scl")
+  for (edge <- 0 until edgesToWait2) {
+    waitForRisingEdgeOnMasterSCL(dut, maxCycles = 1000)
+    // Optionally print: println(s"[DEBUG] Phase 2: Completed rising edge number $edge")
+  }
+  
+  // Read the master's data register
+  val masterReceived = readAPB(dut.io.masterApb, mdataReg.U).toInt
+  println(s"[DEBUG] Phase 2: Master received = 0x${masterReceived.toHexString}, expected = 0x${slaveData2.toHexString}")
+  assert(masterReceived == slaveData2,
+    f"Phase 2 failed: Master received 0x$masterReceived%02X, expected 0x$slaveData2%02X")
+}
+
+  /**
+    * ackVsNackFullDuplex
+    *
+    * This test verifies that if the slave does not match the master’s address
+    * (or is forced to NACK), then the master sees a NACK (RXACK=1 in MSTATUS).
+    */
+  def ackVsNackFullDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
+    implicit val clk: Clock = dut.clock
+    dut.clock.setTimeout(0)
+
+    // --- Configure the SLAVE with a mismatched address ---
+    val sctrlaReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrla").get
+    val saddrReg  = dut.getSlaveRegisterMap.getAddressOfRegister("saddr").get
+    println("[DEBUG] Setting slave address to 0x51 (mismatch)")
+    writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)
+    writeAPB(dut.io.slaveApb, saddrReg.U, 0x51.U) // mismatch with master's target 0x50
+
+    // --- Configure the MASTER for a write (R/W=0 => 0xA0) ---
+    val maddrReg   = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
+    val mbaudReg   = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
+    val mctrlaReg  = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
+    val mstatusReg = dut.getMasterRegisterMap.getAddressOfRegister("mstatus").get
+
+    val addressByte = 0xA0 // 0x50 with R/W=0
+    println(s"[DEBUG] Master address byte = 0x${addressByte.toHexString}")
+    writeAPB(dut.io.masterApb, maddrReg.U, addressByte.U)
     writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
+    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U) // start the transaction
 
+    // Wait for enough rising edges so the transaction can proceed.
+    val edgesToWait = 20
+    println(s"[DEBUG] Waiting for $edgesToWait rising edges on master.scl for ackVsNack test")
+    for(edge <- 0 until edgesToWait) {
+      waitForRisingEdgeOnMasterSCL(dut, maxCycles = 1000)
+      println(s"[DEBUG] Completed rising edge number $edge")
+    }
 
-    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)  // start
-    // Wait ~40 cycles for address phase
-    dut.clock.step(1000)
+    // Read master status and check RXACK (assumed to be bit4 of mstatus)
+    val mstat = readAPB(dut.io.masterApb, mstatusReg.U).toInt
+    val rxack = (mstat >> 4) & 1
+    println(s"[DEBUG] Master MSTATUS = 0x${mstat.toHexString}, RXACK = $rxack")
+    assert(rxack == 1, f"Expected NACK but got ACK (MSTATUS=0x$mstat%02X)")
+  }
+  
+  /**
+    * stopConditionFullDuplex
+    *
+    * In this test the master starts a short transaction and then issues a STOP command.
+    * The slave should detect the STOP condition by updating its sstatus register,
+    * for example by setting the APIF flag (assumed bit6 = 1) and clearing the AP bit (bit0 = 0).
+    */
+  def stopConditionFullDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
+    implicit val clk: Clock = dut.clock
+    dut.clock.setTimeout(0)
+
+    // --- Configure the SLAVE with Stop Interrupt Enable (if implemented) ---
+    // For example, assume bit2 (0x04) is PIEN and bit0 (0x01) is enable.
+    val sctrlaReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrla").get
+    val sstatusReg = dut.getSlaveRegisterMap.getAddressOfRegister("sstatus").get
+    val pienMask = 0x04
+    println(s"[DEBUG] Configuring slave with PIEN enabled (mask=0x${pienMask.toHexString})")
+    writeAPB(dut.io.slaveApb, sctrlaReg.U, (pienMask | 0x01).U)
+
+    // --- Configure the MASTER for a write (R/W=0 => 0xA0) ---
+    val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
+    val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
+    val mctrlaReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
+    val mctrlbReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrlb").get
+    val mstatusReg = dut.getMasterRegisterMap.getAddressOfRegister("mstatus").get
+
+    println("[DEBUG] Configuring master for a write transaction")
+    writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)
+    writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
+    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)
+
+    // Wait for a number of rising edges for the transaction to progress.
+    val edgesToWait = 20
+    println(s"[DEBUG] Waiting for $edgesToWait rising edges on master.scl for stopCondition test")
+    for (edge <- 0 until edgesToWait) {
+      waitForRisingEdgeOnMasterSCL(dut, maxCycles = 1000)
+      println(s"[DEBUG] Completed rising edge number $edge")
+    }
+
+    // Now issue a STOP command from the master.
+    val stopCmd = 0x03  // Assume writing 0x03 to MCTRLb issues a STOP.
+    println(s"[DEBUG] Issuing STOP command (0x03) to master")
+    writeAPB(dut.io.masterApb, mctrlbReg.U, stopCmd.U)
+
+    // Wait (poll) until the slave's sstatus reflects a STOP condition.
+    // That is, wait until sstatus has APIF = 1 (assumed bit6) and AP = 0 (assumed bit0).
+    val timeout = 1000
+    var cycles = 0
+    var stopDetected = false
+    while (cycles < timeout && !stopDetected) {
+      val sstat = readAPB(dut.io.slaveApb, sstatusReg.U).toInt
+      val apif = (sstat >> 6) & 1
+      val ap = sstat & 1
+      if (apif == 1 && ap == 0) {
+        stopDetected = true
+      } else {
+        dut.clock.step(1)
+        cycles += 1
+      }
+    }
+    println(s"[DEBUG] Final slave sstatus = 0x${readAPB(dut.io.slaveApb, sstatusReg.U).toString}")
+    assert(stopDetected, s"Slave did not detect STOP. sstatus=0x${readAPB(dut.io.slaveApb, sstatusReg.U).toString}")
+  }
+
+  /**
+    * noSlavePresentFullDuplex
+    *
+    * In this test the slave is disabled so that when the master sends its address,
+    * no ACK is received. The master’s MSTATUS should then indicate a NACK.
+    */
+  def noSlavePresentFullDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
+    implicit val clk: Clock = dut.clock
+    dut.clock.setTimeout(0)
+
+    // Disable the slave by writing 0 to sctrla.
+    val sctrlaReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrla").get
+    println("[DEBUG] Disabling slave (sctrla = 0)")
+    writeAPB(dut.io.slaveApb, sctrlaReg.U, 0.U)
+
+    // --- Configure the MASTER for a write transaction ---
+    val maddrReg   = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
+    val mbaudReg   = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
+    val mctrlaReg  = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
+    val mstatusReg = dut.getMasterRegisterMap.getAddressOfRegister("mstatus").get
+
+    println("[DEBUG] Configuring master for a write transaction (no slave present)")
+    writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)
+    writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
+    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)
+
+    // Wait for enough rising edges for the master transaction to complete.
+    val edgesToWait = 30
+    println(s"[DEBUG] Waiting for $edgesToWait rising edges on master.scl for noSlavePresent test")
+    for(edge <- 0 until edgesToWait) {
+      waitForRisingEdgeOnMasterSCL(dut, maxCycles = 1000)
+      println(s"[DEBUG] Completed rising edge number $edge")
+    }
+
+    // Read master status and check that RXACK is set (assumed to be bit4)
+    val mstat = readAPB(dut.io.masterApb, mstatusReg.U).toInt
+    val rxack = (mstat >> 4) & 1
+    println(s"[DEBUG] Master MSTATUS = 0x${mstat.toHexString}, RXACK = $rxack")
+    assert(rxack == 1, f"Expected NACK (rxack=1) but got MSTATUS=0x$mstat%02X")
   }
 
 }
