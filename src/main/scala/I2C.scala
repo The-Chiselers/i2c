@@ -84,7 +84,7 @@ class I2C(p: BaseParams) extends Module {
   val addrDecodeParams = registerMap.getAddrDecodeParams
   val addrDecode       = Module(new AddrDecode(addrDecodeParams))
   addrDecode.io.addr       := io.apb.PADDR
-  addrDecode.io.addrOffset := 0.U
+//  addrDecode.io.addrOffset := 0.U
   addrDecode.io.en         := true.B
   addrDecode.io.selInput   := true.B
 
@@ -104,7 +104,7 @@ class I2C(p: BaseParams) extends Module {
             i2cShift := io.apb.PWDATA
             mdata    := io.apb.PWDATA
           } else {
-            reg.writeCallback(addrDecode.io.addrOffset, io.apb.PWDATA)
+            reg.writeCallback(addrDecode.io.addr, io.apb.PWDATA)
           }
           if (reg.name == "maddr") {
             maddrFlag := true.B
@@ -118,7 +118,7 @@ class I2C(p: BaseParams) extends Module {
           if (reg.name == "mdata" || reg.name == "sdata") {
             io.apb.PRDATA := i2cShift
           } else {
-            io.apb.PRDATA := reg.readCallback(addrDecode.io.addrOffset)
+            io.apb.PRDATA := reg.readCallback(addrDecode.io.addr)
           }
         }
       }
