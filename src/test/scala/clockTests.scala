@@ -129,6 +129,13 @@ object clockTests {
       writeAPB(dut.io.apb, mbaudAddr.U, randomBaud.U)
       println(s"DEBUG: Wrote BAUD=$randomBaud to mbaud register.")
 
+      // Read back mbaud to confirm
+      val actualBaud = readAPB(dut.io.apb, mbaudAddr.U)
+      println(s"DEBUG: Read back mbaud = $actualBaud")
+      if (actualBaud != randomBaud) {
+        fail(s"Failed to set mbaud to $randomBaud. Read back $actualBaud")
+      }
+
       // 2. Step 2 clock cycles to allow 'mbaudChanged' to be detected by FSM
       dut.clock.step(2)
       println("DEBUG: Stepped 2 cycles to allow mbaudChanged to be detected.")

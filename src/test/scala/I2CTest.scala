@@ -28,7 +28,10 @@ class I2CTest
     with ApbUtils {
 
   val numTests     = 2
-  val testName     = System.getProperty("testName")
+  var testName     = System.getProperty("testName")
+  if (testName == null) {
+    testName = "all"
+  }
   println(s"Running test: $testName")
 
   // Command-line toggles, e.g. -DenableVcd=true, etc.
@@ -293,6 +296,7 @@ class I2CTest
       }
       coverageCollection(cov.getAnnotationSeq, myParams, "dividerBasic")
     }
+
 
     it should "verify random BAUD values do produce toggles" in {
       val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>

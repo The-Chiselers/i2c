@@ -104,7 +104,7 @@ class I2C(p: BaseParams) extends Module {
             i2cShift := io.apb.PWDATA
             mdata    := io.apb.PWDATA
           } else {
-            reg.writeCallback(addrDecode.io.addr, io.apb.PWDATA)
+            reg.writeCallback(addrDecode.io.addrOut, io.apb.PWDATA)
           }
           if (reg.name == "maddr") {
             maddrFlag := true.B
@@ -118,7 +118,7 @@ class I2C(p: BaseParams) extends Module {
           if (reg.name == "mdata" || reg.name == "sdata") {
             io.apb.PRDATA := i2cShift
           } else {
-            io.apb.PRDATA := reg.readCallback(addrDecode.io.addr)
+            io.apb.PRDATA := reg.readCallback(addrDecode.io.addrOut)
           }
         }
       }
