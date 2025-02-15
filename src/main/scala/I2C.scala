@@ -1,11 +1,10 @@
-package tech.rocksavage.chiselware.I2C
 
+package tech.rocksavage.chiselware.I2C
 import chisel3._
 import chisel3.util._
 import tech.rocksavage.chiselware.apb.{ApbBundle, ApbParams}
 import tech.rocksavage.chiselware.addrdecode.{AddrDecode, AddrDecodeError, AddrDecodeParams}
 import tech.rocksavage.chiselware.addressable.RegisterMap
-
 /**
   * I2C module with:
   *   - APB register map
@@ -26,91 +25,84 @@ class I2C(p: BaseParams) extends Module {
     val slave     = new SlaveInterface
     val interrupt = Output(Bool())
   })
-
   // ------------------------------------------------------------------------
   // 1) Register Map
   // ------------------------------------------------------------------------
   val registerMap = new RegisterMap(p.regWidth, p.addrWidth)
-
   // Internal signals
   val maddrFlag    = RegInit(false.B)
   val i2cShift     = RegInit(0.U(p.dataWidth.W)) // shared shift register
   val addrShift    = RegInit(0.U(8.W))           // for address bits
   val shiftCounter = RegInit(0.U((log2Ceil(p.dataWidth) + 1).W))
   val frameCounter = RegInit(0.U(5.W))
-
   // MASTER REGISTERS
   val mctrla  = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(mctrla, "mctrla")
-
   val mctrlb  = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(mctrlb, "mctrlb")
-
   val mstatus = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(mstatus, "mstatus")
-
   // Default mbaud=10 to avoid divide-by-zero if never written
   val mbaud   = RegInit(10.U(p.regWidth.W))
   registerMap.createAddressableRegister(mbaud, "mbaud")
-
   val maddr   = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(maddr, "maddr")
-
   val mdata   = RegInit(0.U(p.dataWidth.W))
   registerMap.createAddressableRegister(mdata, "mdata")
-
   // SLAVE REGISTERS
   val sctrla    = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(sctrla, "sctrla")
-
   val sctrlb    = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(sctrlb, "sctrlb")
-
   val sstatus   = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(sstatus, "sstatus")
-
   val saddr     = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(saddr, "saddr")
-
   val sdata     = RegInit(0.U(p.dataWidth.W))
   registerMap.createAddressableRegister(sdata, "sdata")
-
   val saddrmask = RegInit(0.U(p.regWidth.W))
   registerMap.createAddressableRegister(saddrmask, "saddrmask")
-
   // ------------------------------------------------------------------------
   // 2) AddrDecode
   // ------------------------------------------------------------------------
   val addrDecodeParams = registerMap.getAddrDecodeParams
   val addrDecode       = Module(new AddrDecode(addrDecodeParams))
-  addrDecode.io.addr       := io.apb.PADDR
+  addrDecode.io.addr      := io.apb.PADDR
 //  addrDecode.io.addrOffset := 0.U
   addrDecode.io.en         := true.B
   addrDecode.io.selInput   := true.B
-
   // ------------------------------------------------------------------------
   // 3) APB Interface
   // ------------------------------------------------------------------------
   io.apb.PREADY  := (io.apb.PENABLE && io.apb.PSEL)
   io.apb.PSLVERR := (addrDecode.io.errorCode === AddrDecodeError.AddressOutOfRange)
   io.apb.PRDATA  := 0.U
-
   when(io.apb.PSEL && io.apb.PENABLE) {
     when(io.apb.PWRITE) {
       // WRITE to a register
       for (reg <- registerMap.getRegisters) {
         when(addrDecode.io.sel(reg.id)) {
-          if (reg.name == "mdata" || reg.name == "sdata") {
+          if(reg.name == "mdata"){
             i2cShift := io.apb.PWDATA
-            mdata    := io.apb.PWDATA
-          } else {
-            reg.writeCallback(addrDecode.io.addrOut, io.apb.PWDATA)
+            mstatus := mstatus & "b00111111".U //Clear interrupts
           }
-          if (reg.name == "maddr") {
+          if (reg.name == "sdata"){
+            i2cShift := io.apb.PWDATA
+            sstatus := sstatus & "b01111111".U //Clear interrupts
+          }
+          if (reg.name == "maddr"){
             maddrFlag := true.B
+            mstatus := mstatus & "b00111111".U //Clear interrupts
           }
+          if(reg.name == "mstatus"){
+            mstatus := mstatus & ~io.apb.PWDATA
+          }
+          if (reg.name == "sstatus"){
+            sstatus := sstatus & ~io.apb.PWDATA
+          }
+          reg.writeCallback(addrDecode.io.addrOut, io.apb.PWDATA)            
         }
-      }
+      }        
     } .otherwise {
       // READ from a register
       for (reg <- registerMap.getRegisters) {
@@ -124,7 +116,6 @@ class I2C(p: BaseParams) extends Module {
       }
     }
   }
-
   // ------------------------------------------------------------------------
   // 4) Divider-based Master Clock
   // ------------------------------------------------------------------------
@@ -132,20 +123,16 @@ class I2C(p: BaseParams) extends Module {
   dividerFreq.io.numerator   := (p.clkFreq.U * 1000000.U)
   dividerFreq.io.denominator := (10.U + (2.U * mbaud))
   dividerFreq.io.start       := false.B
-
   val dividerPer = Module(new Divider())
   dividerPer.io.numerator   := (p.clkFreq.U * 1000000.U)
   dividerPer.io.denominator := (2.U * dividerFreq.io.result)
   dividerPer.io.start       := false.B
-
   val freqReg       = RegInit(1.U(32.W))
   val halfPeriodReg = RegInit(1000.U(32.W))
-
   val DIV_IDLE = 0.U
   val DIV_FREQ = 1.U
   val DIV_PER  = 2.U
   val divState = RegInit(DIV_IDLE)
-
   val lastMbaud    = RegNext(mbaud)
   val mbaudChanged = RegInit(false.B)
   when(mbaud =/= lastMbaud) {
@@ -153,11 +140,9 @@ class I2C(p: BaseParams) extends Module {
   } .otherwise {
     mbaudChanged := false.B
   }
-
   val masterEn     = mctrla(0) // bit0 => enable master
   val lastMasterEn = RegNext(masterEn, false.B)
   val justEnabled  = masterEn && !lastMasterEn
-
   switch(divState) {
     is(DIV_IDLE) {
       when(masterEn && (justEnabled || mbaudChanged)) {
@@ -188,7 +173,6 @@ class I2C(p: BaseParams) extends Module {
       }
     }
   }
-
   // SCL toggling for the master (only active when master is enabled)
   val sclCounter = RegInit(0.U(32.W))
   val sclReg     = RegInit(true.B)
@@ -202,7 +186,6 @@ class I2C(p: BaseParams) extends Module {
     }
     io.master.scl := sclReg
   }
-
   // ------------------------------------------------------------------------
   // 5) Master/Slave FSM Using UInt States
   // ------------------------------------------------------------------------
@@ -219,21 +202,17 @@ class I2C(p: BaseParams) extends Module {
   val STATE_SLAVEREAD     = 10.U
   val STATE_SENDSTOP      = 11.U
   val STATE_WAITSTOP      = 12.U
-
   val stateReg      = RegInit(STATE_IDLE)
   val previousState = RegInit(STATE_IDLE)
-
   // Local registers for the FSM
   val rwBit   = RegInit(0.U(1.W))
   val ssFlag  = RegInit(0.U(1.W))
   val prevSda = RegInit(0.U(1.W))
   val prevClk = RegInit(true.B)
-
   // Default outputs for SDA lines
   io.interrupt     := false.B
   io.master.sdaOut := true.B
   io.slave.sdaOut  := true.B
-
   // Debug print for state transitions
   def printDebugTransition(oldSt: UInt, newSt: UInt): Unit = {
     printf(p"[FSM TRANS] $oldSt => $newSt: rw=$rwBit shiftCtr=$shiftCounter frmCtr=$frameCounter i2cShift=0x${Hexadecimal(i2cShift)} mdata=0x${Hexadecimal(mdata)} sdata=0x${Hexadecimal(sdata)} scl=$sclReg masterEn=$masterEn\n")
@@ -242,7 +221,6 @@ class I2C(p: BaseParams) extends Module {
     printDebugTransition(previousState, stateReg)
   }
   previousState := stateReg
-
   //
   // A helper for the slave to set AP=1 in sstatus.
   // bit0 = AP, bit6 = APIF
@@ -255,7 +233,6 @@ class I2C(p: BaseParams) extends Module {
     // sstatus bit0 => 0, bit6 => 1
     sstatus := (sstatus & ~1.U) | (1.U << 6)
   }
-
   switch(stateReg) {
     // -------------------------------------------------------
     // IDLE
@@ -432,6 +409,9 @@ class I2C(p: BaseParams) extends Module {
         } .otherwise {
           when(shiftCounter === p.dataWidth.U) {
             sclReg := true.B
+            when(mctrla(6) === 1.U){  //When master write complete interrupts are enabled
+              mstatus := mstatus | (1.U << 6.U) //Write master write complete interrupt to register
+            }
             stateReg := STATE_SENDSTOP
           } .otherwise {
             prevSda  := io.master.sdaIn
@@ -455,6 +435,9 @@ class I2C(p: BaseParams) extends Module {
           stateReg    := STATE_SLAVEWRITE
         } .otherwise {
           when(shiftCounter === p.dataWidth.U) {
+            when(sctrla(7) === 1.U) {
+              sstatus := sstatus | (1.U << 7.U)
+            }
             stateReg := STATE_WAITSTOP
           } .otherwise {
             prevSda := io.slave.sdaIn
@@ -479,6 +462,9 @@ class I2C(p: BaseParams) extends Module {
           when(shiftCounter === p.dataWidth.U) {
             mdata := i2cShift
             sclReg := true.B
+            when(mctrla(7) === 1.U){  //When master read complete interrupts are enabled
+              mstatus := mstatus | (1.U << 7.U) //Write master read complete interrupt to register
+            }
             stateReg := STATE_SENDSTOP
           } .otherwise {
             stateReg := STATE_SENDACKMASTER
@@ -501,6 +487,9 @@ class I2C(p: BaseParams) extends Module {
         } .otherwise {
           when(shiftCounter === p.dataWidth.U) {
             sdata := i2cShift
+            when(sctrla(7) === 1.U) {
+              sstatus := sstatus | (1.U << 7.U)
+            }
             stateReg := STATE_WAITSTOP
           } .otherwise {
             stateReg := STATE_SENDACKSLAVE
