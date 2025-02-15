@@ -325,20 +325,51 @@ class I2C(p: BaseParams) extends Module {
         prevSda := io.master.sdaIn
         when((prevSda === 1.U) && (io.master.sdaIn === 0.U)) {
           when(rwBit === 0.U) {
+            /* 
+            *  Master Case 1: Address Packet Transmit Complete - Direction Bit Set to Write
+            *  When a slave device responds to the address packet with an ACK, do the following:
+            *  Set Write Interrupt Flag (WIF = 1)
+            *  Clear Recieved Acknowledge (RXACK = 0)
+            *  Set Clock Hold (CLKHOLD = 1)
+            *  Then, prepare to transmit data to slave via STATE_MASTERWRTE
+            */
+            mstatus := mstatus | (1.U << 6)  // WIF = 1
+            mstatus := mstatus & ~(1.U << 4) // RXACK = 0
+            mstatus := mstatus | (1.U << 5)  // CLKHOLD = 1
+            sclReg := false.B  // Hold SCL low
+
             i2cShift     := mdata
             shiftCounter := 0.U
             frameCounter := 0.U
             stateReg     := STATE_MASTERWRITE
           } .otherwise {
+            /* 
+            *  Master Case 2: Address Packet Transmit Complete - Direction Bit Set to Read
+            *  When a slave device responds to the address packet with an ACK, do the following:
+            *  Clear Recieved Acknowledge (RXACK = 0)
+            *  Set Clock Hold (CLKHOLD = 1)
+            *  Then, prepare to read data from slave via STATE_MASTERREAD
+            */
+            mstatus := mstatus & ~(1.U << 4) // RXACK = 0
+            mstatus := mstatus | (1.U << 5)  // CLKHOLD = 1
+            sclReg := false.B  // Hold SCL low
+
             i2cShift     := 0.U
             shiftCounter := 0.U
             frameCounter := 0.U
             stateReg     := STATE_MASTERREAD
           }
         } .otherwise {
-          // No ACK => set RXACK bit4, go to STOP
-          mstatus := mstatus | (1.U << 4)
-          stateReg := STATE_SENDSTOP
+            /* 
+            *  Master Case 3: Address Packet Transmit Complete - NACK from Slave
+            *  When no slave device responds to the address packet, do the following:
+            *  Set Write Interrupt Flag (WIF = 1) 
+            *  Set Recieved Acknowledge (RXACK = 1)
+            *  Then, issue a STOP condition to end the transaction
+            */
+            mstatus := mstatus | (1.U << 6)  // WIF = 1
+            mstatus := mstatus | (1.U << 4)  // RXACK = 1
+            stateReg := STATE_SENDSTOP
         }
       }
     }
