@@ -13,7 +13,7 @@ import chisel3._
 import chisel3.util._
 import chiseltest._
 import chiseltest.coverage._
-import chiseltest.simulator.VerilatorFlags
+import chiseltest.simulator.VerilatorCFlags
 import firrtl2.AnnotationSeq
 import firrtl2.annotations.Annotation
 import firrtl2.options.TargetDirAnnotation
@@ -49,7 +49,7 @@ class I2CTest
     if (enableFst) annos = annos :+ WriteFstAnnotation
     if (useVerilator) {
       annos = annos :+ VerilatorBackendAnnotation
-      annos = annos :+ VerilatorFlags(Seq("--cc", "--std=c++17"))
+      annos = annos :+ VerilatorCFlags(Seq("--std=c++17"))
     }
     annos = annos :+ TargetDirAnnotation(testDir)
     annos
