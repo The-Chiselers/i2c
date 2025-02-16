@@ -35,8 +35,8 @@ class I2CTest
   println(s"Running test: $testName")
 
   // Command-line toggles, e.g. -DenableVcd=true, etc.
-  val enableVcd    = System.getProperty("enableVcd", "false").toBoolean
-  val enableFst    = System.getProperty("enableFst", "true").toBoolean
+  val enableVcd    = System.getProperty("enableVcd", "true").toBoolean
+  val enableFst    = System.getProperty("enableFst", "false").toBoolean
   val useVerilator = System.getProperty("useVerilator", "false").toBoolean
 
   val buildRoot    = sys.env.get("BUILD_ROOT_RELATIVE")

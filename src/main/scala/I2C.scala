@@ -618,7 +618,7 @@ class I2C(p: BaseParams) extends Module {
     }
     stopDetected //Return
   }
-
+//
   def detectStopConditionMaster(): Bool = {
     val stopDetected = WireInit(false.B)
     prevClkBus := io.master.scl
