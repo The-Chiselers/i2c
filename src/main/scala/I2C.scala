@@ -186,8 +186,42 @@ class I2C(p: BaseParams) extends Module {
     }
     io.master.scl := sclReg
   }
+
   // ------------------------------------------------------------------------
   // 5) Master/Slave FSM Using UInt States
+  // ------------------------------------------------------------------------
+
+  object BusState extends ChiselEnum {
+    val IDLE, BUSY, OWNER = Value
+  }  
+  val busStateReg = RegInit(BusState.IDLE)
+  val prevSdaBus = RegInit(0.U(1.W))
+  val prevClkBus = RegInit(true.B)
+  val ssFlag  = RegInit(0.U(1.W))
+  /*
+  switch(busStateReg) {
+    is(BusState.IDLE) {
+      when(mctrla(0) === 1.U && maddrFlag) { //Internal START Condition
+        busStateReg := BusState.OWNER
+      }.elsewhen(detectStartConditionMaster()){ //External START Condition
+        busStateReg := BusState.BUSY
+      }
+    }
+    is(BusState.BUSY) {
+      when(io.master.scl && io.master.sdaIn === 1.U) { //STOP Condition Detected
+        busStateReg := BusState.IDLE
+      }
+    }
+    is(BusState.OWNER) {
+      when((io.master.scl && io.master.sdaIn === 1.U)) { //Need to add check for arb lost
+        busStateReg := BusState.IDLE
+      }
+    }
+  }
+    */
+
+  // ------------------------------------------------------------------------
+  // 6) Master/Slave FSM Using UInt States
   // ------------------------------------------------------------------------
   val STATE_IDLE          = 0.U
   val STATE_MASTERADDRESS = 1.U
@@ -206,7 +240,6 @@ class I2C(p: BaseParams) extends Module {
   val previousState = RegInit(STATE_IDLE)
   // Local registers for the FSM
   val rwBit   = RegInit(0.U(1.W))
-  val ssFlag  = RegInit(0.U(1.W))
   val prevSda = RegInit(0.U(1.W))
   val prevClk = RegInit(true.B)
   // Default outputs for SDA lines
@@ -221,18 +254,7 @@ class I2C(p: BaseParams) extends Module {
     printDebugTransition(previousState, stateReg)
   }
   previousState := stateReg
-  //
-  // A helper for the slave to set AP=1 in sstatus.
-  // bit0 = AP, bit6 = APIF
-  //
-  def setAP(): Unit = {
-    // sstatus bit0 => set to 1
-    sstatus := sstatus | 1.U
-  }
-  def clearAPsetAPIF(): Unit = {
-    // sstatus bit0 => 0, bit6 => 1
-    sstatus := (sstatus & ~1.U) | (1.U << 6)
-  }
+
   switch(stateReg) {
     // -------------------------------------------------------
     // IDLE
@@ -243,32 +265,14 @@ class I2C(p: BaseParams) extends Module {
       when(!masterEn) { sclReg := true.B }
       
       // MASTER side: When enabled and address written, drive SDA low and prepare to send address.
-      when(mctrla(0) === 1.U) {
-        when(maddrFlag) {
-          io.master.sdaOut := 0.U
-          ssFlag := 1.U
-          stateReg := STATE_IDLE
-          when(ssFlag === 1.U) {
-            maddrFlag := false.B
-            ssFlag    := 0.U
-            sclReg    := false.B
-            addrShift := maddr
-            stateReg  := STATE_MASTERADDRESS
-          }
-        }
+      when(mctrla(0) === 1.U && maddrFlag) {
+        sendStartCondition()
       }
       
       // SLAVE side: If enabled, look for SDA=0 => potential start
       when(sctrla(0) === 1.U) {
-        when(io.slave.sdaIn === 0.U) {
-          ssFlag   := 1.U
-          stateReg := STATE_IDLE
-        }
-        when(ssFlag === 1.U) {
-          when(!io.slave.scl) {
-            ssFlag   := 0.U
-            stateReg := STATE_SLAVEADDRESS
-          }
+        when(detectStartConditionSlave()) {
+          stateReg := STATE_SLAVEADDRESS
         }
       }
     }
@@ -306,7 +310,7 @@ class I2C(p: BaseParams) extends Module {
           rwBit := io.slave.sdaIn
           // If address matches, set AP=1 in sstatus, then do SENDACKSLAVE
           when(saddr === addrShift) {
-            setAP()  // bit0 => 1
+            sstatus := sstatus | 1.U
             stateReg := STATE_SENDACKSLAVE
           } .otherwise {
             stateReg := STATE_IDLE
@@ -545,11 +549,92 @@ class I2C(p: BaseParams) extends Module {
     is(STATE_WAITSTOP) {
       // If SCL=1 and SDA=1 => STOP => set APIF=1 (bit6), AP=0.
       when(io.slave.scl && io.slave.sdaIn === 1.U) {
-        clearAPsetAPIF() // bit6=1, bit0=0
+        sstatus := (sstatus & ~1.U) | (1.U << 6)
         stateReg := STATE_IDLE
       } .otherwise {
         stateReg := STATE_WAITSTOP
       }
     }
   }
+
+  // ------------------------------------------------------------------------
+// 7) Helper Functions
+// ------------------------------------------------------------------------
+  def sendStartCondition(): Unit = {
+    io.master.sdaOut := 0.U  // Drive SDA low for START condition
+    ssFlag := 1.U            // Set start flag
+    when(ssFlag === 1.U) {
+      maddrFlag := false.B   // Clear address flag
+      ssFlag    := 0.U       // Clear start flag
+      sclReg    := false.B   // Drive SCL low
+      addrShift := maddr     // Load address into shift register
+      stateReg  := STATE_MASTERADDRESS  // Transition to MASTERADDRESS state
+    }
+  }
+
+  def detectStartConditionSlave(): Bool = {
+    val startDetected = WireInit(false.B)
+
+    when(io.slave.sdaIn === 0.U) {
+      ssFlag := 1.U
+    }
+    when(ssFlag === 1.U) {
+      when(!io.slave.scl) {
+        ssFlag := 0.U
+        startDetected := true.B
+      }
+    }
+    startDetected //Return
+  }
+
+  def detectStartConditionMaster(): Bool = {
+    val startDetected = WireInit(false.B)
+
+    when(io.master.sdaIn === 0.U) {
+      ssFlag := 1.U
+    }
+    when(ssFlag === 1.U) {
+      when(!io.master.scl) {
+        ssFlag := 0.U
+        startDetected := true.B
+      }
+    }
+    startDetected //Return
+  }
+
+  def detectStopConditionSlave(): Bool = {
+    val stopDetected = WireInit(false.B)
+    prevClkBus := io.slave.scl
+    prevSdaBus := io.slave.sdaIn
+
+    when(~prevClkBus && io.slave.scl) {
+      ssFlag := 1.U
+    }
+    when(ssFlag === 1.U) {
+      when((io.slave.scl) && (prevSdaBus === 0.U) && (io.slave.sdaIn === 1.U)) {
+        ssFlag := 0.U
+        stopDetected := true.B
+      }
+    }
+    stopDetected //Return
+  }
+
+  def detectStopConditionMaster(): Bool = {
+    val stopDetected = WireInit(false.B)
+    prevClkBus := io.master.scl
+    prevSdaBus := io.master.sdaIn
+
+    when(~prevClkBus && io.master.scl) {
+      ssFlag := 1.U
+    }
+    when(ssFlag === 1.U) {
+      when((io.master.scl) && (prevSdaBus === 0.U) && (io.master.sdaIn === 1.U)) {
+        ssFlag := 0.U
+        stopDetected := true.B
+      }
+    }
+    stopDetected //Return
+  }
+
 }
+
