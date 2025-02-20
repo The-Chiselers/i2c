@@ -624,12 +624,14 @@ class I2C(p: BaseParams) extends Module {
 
   def detectStartConditionMaster(): Bool = {
     val startDetected = WireInit(false.B)
+    prevSdaBus := io.master.sdaIn
+    prevClkBus := io.master.sclIn
 
-    when(io.master.sdaIn === 0.U) {
+    when((prevSdaBus === 1.U) && (io.master.sdaIn === 0.U)) {
       ssFlags := ssFlags | (1.U << 2.U)
     }
     when(ssFlags(2) === 1.U) {
-      when(!io.master.sclIn) {
+      when(prevClkBus && !io.master.sclIn) {
         ssFlags := ssFlags & ~(1.U << 2.U)
         startDetected := true.B
       }

@@ -81,7 +81,7 @@ class I2CTest
       // Basic clock test
       case "masterClock" =>
         it should "generate the correct clock frequency for master mode" in {
-          val cov = test(new I2C(myParams))
+          val cov = test(new FullDuplexI2C(myParams))
             .withAnnotations(backendAnnotations) { dut =>
               clockTests.masterClock(dut, myParams)
             }
@@ -90,7 +90,7 @@ class I2CTest
 
       case "dividerBasic" =>
         it should "verify the Divider-based I2C clock generation in a simple scenario" in {
-          val cov = test(new I2C(myParams))
+          val cov = test(new FullDuplexI2C(myParams))
             .withAnnotations(backendAnnotations) { dut =>
               clockTests.dividerBasicCheck(dut, myParams)
             }
@@ -99,12 +99,15 @@ class I2CTest
 
       case "dividerRandom" =>
         it should "verify random BAUD values do produce toggles" in {
-          val cov = test(new I2C(myParams))
+          val cov = test(new FullDuplexI2C(myParams))
             .withAnnotations(backendAnnotations) { dut =>
               clockTests.dividerRandomCheck(dut, myParams)
             }
           coverageCollection(cov.getAnnotationSeq, myParams, name)
         }
+
+      case "clockTests" =>
+        clockTestFull(myParams)
 
       // Arbitration from "arbitrationTests.scala"
       case "arbitrationLost" =>
@@ -284,14 +287,14 @@ class I2CTest
   /** Basic clock tests. */
   def clockTestFull(myParams: BaseParams): Unit = {
     it should "generate the correct clock frequency for master mode" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
         clockTests.masterClock(dut, myParams)
       }
       coverageCollection(cov.getAnnotationSeq, myParams, "masterClock")
     }
 
     it should "verify the Divider-based I2C clock generation in a simple scenario" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
         clockTests.dividerBasicCheck(dut, myParams)
       }
       coverageCollection(cov.getAnnotationSeq, myParams, "dividerBasic")
@@ -299,7 +302,7 @@ class I2CTest
 
 
     it should "verify random BAUD values do produce toggles" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
         clockTests.dividerRandomCheck(dut, myParams)
       }
       coverageCollection(cov.getAnnotationSeq, myParams, "dividerRandom")
