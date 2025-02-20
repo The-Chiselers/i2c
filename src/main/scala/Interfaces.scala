@@ -19,7 +19,8 @@ class ApbInterface(p: BaseParams) extends Bundle {
 }
 
 class MasterInterface() extends Bundle {
-  val scl    = Output(Bool())  // I2C clock output (master)
+  val sclIn     = Input(Bool())
+  val sclOut    = Output(Bool())  // I2C clock output (master)
   val sdaIn     = Input(UInt(1.W))
   val sdaOut    = Output(UInt(1.W))  // I2C data output (master)
 }

@@ -23,19 +23,19 @@ object clockTests {
     writeAPB(dut.io.apb, mbaudAddr.U, expectedBaud.U)
 
     // 2) Enable master mode
-    val mctrlaAddr = dut.registerMap.getAddressOfRegister("mctrla").get
-    writeAPB(dut.io.apb, mctrlaAddr.U, 1.U)
+    val mctrlAddr = dut.registerMap.getAddressOfRegister("mctrl").get
+    writeAPB(dut.io.apb, mctrlAddr.U, 1.U)
 
     // 3) Wait ~20 cycles for the divider FSM to compute halfPeriod, etc.
     dut.clock.step(100)
 
     // 4) Now step the simulation enough cycles to see toggles
     var togglesSeen  = 0
-    var lastSclState = dut.io.master.scl.peek().litToBoolean
+    var lastSclState = dut.io.master.sclOut.peek().litToBoolean
 
     for (_ <- 0 until 300) {
       dut.clock.step()
-      val currentScl = dut.io.master.scl.peek().litToBoolean
+      val currentScl = dut.io.master.sclOut.peek().litToBoolean
       if (currentScl != lastSclState) {
         togglesSeen += 1
       }
@@ -55,25 +55,25 @@ object clockTests {
     val clockFreqHz  = params.clkFreq * 1_000_000
     val computedBaud = (clockFreqHz / targetSclHz) - 5
     val mbaudAddr    = dut.registerMap.getAddressOfRegister("mbaud").get
-    val mctrlaAddr   = dut.registerMap.getAddressOfRegister("mctrla").get
+    val mctrlAddr   = dut.registerMap.getAddressOfRegister("mctrl").get
 
     // 1) Write the BAUD
     writeAPB(dut.io.apb, mbaudAddr.U, computedBaud.U)
 
     // 2) Enable Master
-    writeAPB(dut.io.apb, mctrlaAddr.U, 1.U)
+    writeAPB(dut.io.apb, mctrlAddr.U, 1.U)
 
     // 3) Wait ~20 cycles for FSM
     dut.clock.step(100)
 
     // 4) Check toggles
     var toggles = 0
-    var prevScl = dut.io.master.scl.peek().litToBoolean
+    var prevScl = dut.io.master.sclOut.peek().litToBoolean
 
     // We'll step 5000 cycles
     for(_ <- 0 until 4900) {
       dut.clock.step()
-      val nowScl = dut.io.master.scl.peek().litToBoolean
+      val nowScl = dut.io.master.sclOut.peek().litToBoolean
       if (nowScl != prevScl) toggles += 1
       prevScl = nowScl
     }
@@ -97,21 +97,21 @@ object clockTests {
 
     // Safely retrieve register addresses using getAddressOfRegister
     val mbaudAddrOpt      = dut.registerMap.getAddressOfRegister("mbaud")
-    val mctrlaAddrOpt     = dut.registerMap.getAddressOfRegister("mctrla")
+    val mctrlAddrOpt     = dut.registerMap.getAddressOfRegister("mctrl")
 
     // Ensure all required registers are present
     val mbaudAddr    = mbaudAddrOpt.getOrElse { fail("Register 'mbaud' not found in RegisterMap") }
-    val mctrlaAddr   = mctrlaAddrOpt.getOrElse { fail("Register 'mctrla' not found in RegisterMap") }
+    val mctrlAddr   = mctrlAddrOpt.getOrElse { fail("Register 'mctrl' not found in RegisterMap") }
 
-    // Enable Master by writing to mctrla register
-    writeAPB(dut.io.apb, mctrlaAddr.U, 1.U)
-    println("DEBUG: Master enabled by writing to mctrla.")
+    // Enable Master by writing to mctrl register
+    writeAPB(dut.io.apb, mctrlAddr.U, 1.U)
+    println("DEBUG: Master enabled by writing to mctrl.")
 
-    // Read back mctrla to confirm
-    val actualMctrla = readAPB(dut.io.apb, mctrlaAddr.U)
-    println(s"DEBUG: Read back mctrla = $actualMctrla")
-    if (actualMctrla != 1) {
-      fail(s"Failed to set mctrla bit 0 => 1. Read back $actualMctrla")
+    // Read back mctrl to confirm
+    val actualmctrl = readAPB(dut.io.apb, mctrlAddr.U)
+    println(s"DEBUG: Read back mctrl = $actualmctrl")
+    if (actualmctrl != 1) {
+      fail(s"Failed to set mctrl bit 0 => 1. Read back $actualmctrl")
     }
 
     // Wait sufficient cycles for FSM to initialize
@@ -152,10 +152,10 @@ object clockTests {
 
       // 5. Step 1000 cycles and count actual SCL toggles
       var toggles = 0
-      var prevScl = dut.io.master.scl.peek().litToBoolean
+      var prevScl = dut.io.master.sclOut.peek().litToBoolean
       for(_ <- 0 until 1000) {
         dut.clock.step()
-        val nowScl = dut.io.master.scl.peek().litToBoolean
+        val nowScl = dut.io.master.sclOut.peek().litToBoolean
         if (nowScl != prevScl) {
           toggles += 1
         }

@@ -19,8 +19,8 @@ object stopConditionTests {
     implicit val clk: Clock = dut.clock
 
     // 1) Master enable
-    val mctrlaAddr = dut.registerMap.getAddressOfRegister("mctrla").get
-    writeAPB(dut.io.apb, mctrlaAddr.U, 1.U)
+    val mctrlAddr = dut.registerMap.getAddressOfRegister("mctrl").get
+    writeAPB(dut.io.apb, mctrlAddr.U, 1.U)
 
     // 2) Step enough cycles for normal transmit, no repeated start
     dut.clock.step(50)
@@ -29,7 +29,7 @@ object stopConditionTests {
     var stopSeen = false
     for (_ <- 0 until 50) {
       dut.clock.step(1)
-      val sclVal = dut.io.master.scl.peek().litToBoolean
+      val sclVal = dut.io.master.sclOut.peek().litToBoolean
       //val sdaVal = dut.io.master.sdaOut.peek().litToBoolean
      // if (sclVal && sdaVal) {
      //   stopSeen = true
@@ -62,7 +62,7 @@ object stopConditionTests {
     var stopDetected = false
     for (_ <- 0 until 20) {
       dut.clock.step(1)
-      val sclVal = dut.io.master.scl.peek().litToBoolean
+      val sclVal = dut.io.master.sclOut.peek().litToBoolean
       //val sdaVal = dut.io.master.sdaOut.peek().litToBoolean
       //if (sclVal && sdaVal) {
       //  stopDetected = true

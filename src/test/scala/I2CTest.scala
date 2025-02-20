@@ -109,9 +109,9 @@ class I2CTest
       // Arbitration from "arbitrationTests.scala"
       case "arbitrationLost" =>
         it should "handle multi-master arbitration lost" in {
-          val cov = test(new I2C(myParams))
+          val cov = test(new MultiMasterI2C(myParams))
             .withAnnotations(backendAnnotations) { dut =>
-              arbitrationTests.masterArbitrationLostTest(dut, myParams)
+              arbitrationTests.multiMasterWriteSlaveRead(dut, myParams)
             }
           coverageCollection(cov.getAnnotationSeq, myParams, name)
         }
@@ -310,8 +310,8 @@ class I2CTest
   /** Advanced tests: arbitration, repeated starts, bus errors, collisions, stops. */
   def advancedTestsFull(myParams: BaseParams): Unit = {
     it should "handle multi-master arbitration lost" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-        arbitrationTests.masterArbitrationLostTest(dut, myParams)
+      val cov = test(new MultiMasterI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        arbitrationTests.multiMasterWriteSlaveRead(dut, myParams)
       }
       coverageCollection(cov.getAnnotationSeq, myParams, "arbitrationLost")
     }

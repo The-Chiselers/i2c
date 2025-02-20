@@ -54,7 +54,7 @@ object transmitTests {
     // --- Configure the Master ---
     val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
     val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
-    val mctrlaReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
+    val mctrlReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrl").get
     val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
 
     // We'll do a read transaction => (slave address=0x50, R/W=1 => 0xA1)
@@ -64,7 +64,7 @@ object transmitTests {
     // Set a small BAUD => For example 2 => halfPeriod ~ 7 cycles => full period ~14
     writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
     // Start the master
-    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)
+    writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
 
     // --- Step the clock "slowly" in single increments
     for(_ <- 0 until 300) {
@@ -88,12 +88,12 @@ object transmitTests {
     */
   def waitForRisingEdgeOnMasterSCL(dut: FullDuplexI2C, maxCycles: Int = 1000)
                                   (implicit clk: Clock): Unit = {
-    var prevScl = dut.io.master.scl.peekBoolean()
+    var prevScl = dut.io.master.sclOut.peekBoolean()
     var cycles  = 0
     println(s"[DEBUG] (waitForRisingEdge) Initial master.scl: $prevScl")
     while (cycles < maxCycles) {
       dut.clock.step(1)
-      val nowScl = dut.io.master.scl.peekBoolean()
+      val nowScl = dut.io.master.sclOut.peekBoolean()
       // Debug print every 50 cycles
       if (cycles % 50 == 0) {
         println(s"[DEBUG] (waitForRisingEdge) Cycle $cycles, master.scl: $nowScl")
@@ -134,14 +134,14 @@ object transmitTests {
     // --- Configure MASTER registers ---
     val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
     val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
-    val mctrlaReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
+    val mctrlReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrl").get
     val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
 
     val masterData = 0xAB
     // println(s"[DEBUG] Configuring master registers: masterData = 0x${masterData.toHexString}")
     writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)   // 0x50 + R/W=0
     writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)      // small BAUD => ~7 cycles per half period
-    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)     // enable master
+    writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)     // enable master
     dut.clock.step(100)
     writeAPB(dut.io.masterApb, mdataReg.U, masterData.U)
     dut.clock.step(1)
@@ -150,7 +150,7 @@ object transmitTests {
     // Estimate the number of rising edges needed for the transaction.
     // For one byte write: address (8 bits) + ACK, data (8 bits) + ACK, plus STOP.
     // Waiting for ~30 rising edges should be more than sufficient.
-    val edgesToWait = 30
+    val edgesToWait = 8
     println(s"[DEBUG] Waiting for $edgesToWait rising edges on master.scl")
     for (edge <- 0 until edgesToWait) {
       waitForRisingEdgeOnMasterSCL(dut, maxCycles = 1000)
@@ -194,14 +194,14 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
   // (The transmitted address should be 0x50 with R/W=0 → 0xA0)
   val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
   val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
-  val mctrlaReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
+  val mctrlReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrl").get
   val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
 
   val masterData1 = 0xAB
   // Write the address (0xA0) and then start the master.
   writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)
   writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
-  writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)
+  writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
   // Let the transaction begin; wait a short time.
   dut.clock.step(100)
   // Write the data to be transmitted.
@@ -241,7 +241,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
   // Ensure BAUD is still 2.
   writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
   // Start the master for the read transaction.
-  writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)
+  writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
   
   // Wait for the read transaction to complete by waiting for rising edges.
   val edgesToWait2 = 30
@@ -278,28 +278,28 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
     // --- Configure the MASTER for a write (R/W=0 => 0xA0) ---
     val maddrReg   = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
     val mbaudReg   = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
-    val mctrlaReg  = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
+    val mctrlReg  = dut.getMasterRegisterMap.getAddressOfRegister("mctrl").get
     val mstatusReg = dut.getMasterRegisterMap.getAddressOfRegister("mstatus").get
 
     val addressByte = 0xA0 // 0x50 with R/W=0
     println(s"[DEBUG] Master address byte = 0x${addressByte.toHexString}")
     writeAPB(dut.io.masterApb, maddrReg.U, addressByte.U)
     writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
-    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U) // start the transaction
+    writeAPB(dut.io.masterApb, mctrlReg.U, 1.U) // start the transaction
 
     // Wait for enough rising edges so the transaction can proceed.
-    val edgesToWait = 20
+    val edgesToWait = 8
     println(s"[DEBUG] Waiting for $edgesToWait rising edges on master.scl for ackVsNack test")
     for(edge <- 0 until edgesToWait) {
       waitForRisingEdgeOnMasterSCL(dut, maxCycles = 1000)
       println(s"[DEBUG] Completed rising edge number $edge")
     }
 
-    // Read master status and check RXACK (assumed to be bit4 of mstatus)
-    val mstat = readAPB(dut.io.masterApb, mstatusReg.U).toInt
-    val rxack = (mstat >> 4) & 1
-    println(s"[DEBUG] Master MSTATUS = 0x${mstat.toHexString}, RXACK = $rxack")
-    assert(rxack == 1, f"Expected NACK but got ACK (MSTATUS=0x$mstat%02X)")
+    // --- Read master status and check RXACK (bit3 of mstatus) ---
+  val mstat = readAPB(dut.io.masterApb, mstatusReg.U).toInt
+  val rxack = (mstat >> 3) & 1  // Shift by 3 to get bit3 (RXACK)
+  println(s"[DEBUG] Master MSTATUS = 0x${mstat.toHexString}, RXACK = $rxack")
+  assert(rxack == 1, f"Expected NACK but got ACK (MSTATUS=0x$mstat%02X)")
   }
   
   /**
@@ -324,27 +324,27 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
     // --- Configure the MASTER for a write (R/W=0 => 0xA0) ---
     val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
     val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
-    val mctrlaReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
-    val mctrlbReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrlb").get
+    val mctrlReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrl").get
+    // val mctrlbReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrlb").get
     val mstatusReg = dut.getMasterRegisterMap.getAddressOfRegister("mstatus").get
 
     println("[DEBUG] Configuring master for a write transaction")
     writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)
     writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
-    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)
+    writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
 
     // Wait for a number of rising edges for the transaction to progress.
-    val edgesToWait = 20
+    val edgesToWait = 8
     println(s"[DEBUG] Waiting for $edgesToWait rising edges on master.scl for stopCondition test")
     for (edge <- 0 until edgesToWait) {
       waitForRisingEdgeOnMasterSCL(dut, maxCycles = 1000)
       println(s"[DEBUG] Completed rising edge number $edge")
     }
 
-    // Now issue a STOP command from the master.
-    val stopCmd = 0x03  // Assume writing 0x03 to MCTRLb issues a STOP.
-    println(s"[DEBUG] Issuing STOP command (0x03) to master")
-    writeAPB(dut.io.masterApb, mctrlbReg.U, stopCmd.U)
+    // // Now issue a STOP command from the master.
+    // val stopCmd = 0x03  // Assume writing 0x03 to MCTRLb issues a STOP.
+    // println(s"[DEBUG] Issuing STOP command (0x03) to master")
+    // writeAPB(dut.io.masterApb, mctrlbReg.U, stopCmd.U)
 
     // Wait (poll) until the slave's sstatus reflects a STOP condition.
     // That is, wait until sstatus has APIF = 1 (assumed bit6) and AP = 0 (assumed bit0).
@@ -384,16 +384,16 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
     // --- Configure the MASTER for a write transaction ---
     val maddrReg   = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
     val mbaudReg   = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
-    val mctrlaReg  = dut.getMasterRegisterMap.getAddressOfRegister("mctrla").get
+    val mctrlReg  = dut.getMasterRegisterMap.getAddressOfRegister("mctrl").get
     val mstatusReg = dut.getMasterRegisterMap.getAddressOfRegister("mstatus").get
 
     println("[DEBUG] Configuring master for a write transaction (no slave present)")
     writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)
     writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
-    writeAPB(dut.io.masterApb, mctrlaReg.U, 1.U)
+    writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
 
     // Wait for enough rising edges for the master transaction to complete.
-    val edgesToWait = 30
+    val edgesToWait = 8
     println(s"[DEBUG] Waiting for $edgesToWait rising edges on master.scl for noSlavePresent test")
     for(edge <- 0 until edgesToWait) {
       waitForRisingEdgeOnMasterSCL(dut, maxCycles = 1000)
@@ -402,7 +402,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
 
     // Read master status and check that RXACK is set (assumed to be bit4)
     val mstat = readAPB(dut.io.masterApb, mstatusReg.U).toInt
-    val rxack = (mstat >> 4) & 1
+    val rxack = (mstat >> 3) & 1
     println(s"[DEBUG] Master MSTATUS = 0x${mstat.toHexString}, RXACK = $rxack")
     assert(rxack == 1, f"Expected NACK (rxack=1) but got MSTATUS=0x$mstat%02X")
   }

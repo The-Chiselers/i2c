@@ -19,14 +19,14 @@ object busErrorTests {
     implicit val clk: Clock = dut.clock
 
     // Start master
-    val mctrlaAddr = dut.registerMap.getAddressOfRegister("mctrla").get
-    writeAPB(dut.io.apb, mctrlaAddr.U, 1.U)
+    val mctrlAddr = dut.registerMap.getAddressOfRegister("mctrl").get
+    writeAPB(dut.io.apb, mctrlAddr.U, 1.U)
 
     dut.clock.step(10)
     
     // Force an illegal move: SCL is high => forcibly toggle sdaIn
     // In a real design, we might wait exactly for sclOut=1
-    while(!dut.io.master.scl.peek().litToBoolean) { dut.clock.step(1) }
+    while(!dut.io.master.sclOut.peek().litToBoolean) { dut.clock.step(1) }
     
     // Now quickly toggle sdaIn
     dut.io.slave.sdaIn.poke(false.B)
