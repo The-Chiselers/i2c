@@ -329,9 +329,7 @@ class I2C(p: BaseParams) extends Module {
             *  Set Clock Hold (CLKHOLD = 1)
             *  Then, prepare to transmit data to slave via STATE_MASTERWRTE
             */
-            mstatus := mstatus | (1.U << 6)  // WIF = 1
-            mstatus := mstatus & ~(1.U << 4) // RXACK = 0
-            mstatus := mstatus | (1.U << 5)  // CLKHOLD = 1
+            mstatus := (mstatus | (1.U(7.W) << 6) | (1.U(7.W) << 5)) & ~(1.U(7.W) << 4)
             sclReg := false.B  // Hold SCL low
 
             i2cShift     := mdata
@@ -365,6 +363,7 @@ class I2C(p: BaseParams) extends Module {
             */
             mstatus := mstatus | (1.U << 6)  // WIF = 1
             mstatus := mstatus | (1.U << 4)  // RXACK = 1
+            sclReg := true.B
             stateReg := STATE_SENDSTOP
         }
       }
@@ -446,10 +445,8 @@ class I2C(p: BaseParams) extends Module {
           }
         }
         when(io.master.sdaOut =/= io.master.sdaIn) {
-          mstatus := mstatus | (1.U << 2.U) //Set ARBLOST
-          busStateReg := BusState.BUSY
-          mstatus := mstatus & ~(1.U << 0.U)
-          mstatus := mstatus | (1.U << 1.U)   
+          mstatus := (mstatus | (1.U(3.W) << 2) | (1.U(3.W) << 1)) & ~(1.U(3.W) << 0)
+          busStateReg := BusState.BUSY  
           stateReg := STATE_IDLE
         }
         
@@ -538,9 +535,13 @@ class I2C(p: BaseParams) extends Module {
     // -------------------------------------------------------
     is(STATE_SENDSTOP) {
       // Master drives SDA high while SCL is high => STOP
-      io.master.sdaOut := 1.U
+      io.master.sdaOut := 0.U
       sclReg := true.B
-      stateReg := STATE_IDLE
+      ssFlags := ssFlags | (1.U << 3.U)
+      when(ssFlags(3)) {
+        io.master.sdaOut := 1.U
+        stateReg := STATE_IDLE
+      }
     }
     
     // -------------------------------------------------------
@@ -659,19 +660,14 @@ class I2C(p: BaseParams) extends Module {
   def detectStopConditionMaster(): Bool = {
     val stopDetected = WireInit(false.B)
     prevClkBus := io.master.sclIn
+    prevSdaBus := io.master.sdaIn
 
-    when(~prevClkBus && io.master.sclIn) {
-      prevSdaBus := io.master.sdaIn
+    when(prevClkBus && io.master.sclIn) {
       edgeCounter := edgeCounter + 1.U
-      ssFlags := ssFlags | (1.U << 4.U)
     }
-    when(ssFlags(4) === 1.U) {
-      when(prevClkBus && io.master.sclIn) {
-        when((prevSdaBus === 0.U) && (io.master.sdaIn === 1.U)) {
-          ssFlags := ssFlags & ~(1.U << 4.U)
-          stopDetected := true.B
-        }
-      }
+
+    when((edgeCounter === 3.U) && (prevSdaBus === 0.U) && (io.master.sdaIn === 1.U)) {
+      stopDetected := true.B
     }
     stopDetected //Return
   }

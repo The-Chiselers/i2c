@@ -17,14 +17,14 @@ object arbitrationTests {
     * Debug messages print the cycle count and signal value.
     * If no rising edge is detected within maxCycles, the test will fail.
     */
-  def waitForRisingEdgeOnMasterSCL(dut: FullDuplexI2C, maxCycles: Int = 100)
+  def waitForRisingEdgeOnMasterSCL(dut: MultiMasterI2C, maxCycles: Int = 100)
                                   (implicit clk: Clock): Boolean = {
-    var prevScl = dut.io.master.sclOut.peekBoolean()
+    var prevScl = dut.io.master1.sclOut.peekBoolean() &  dut.io.master2.sclOut.peekBoolean() 
     var cycles  = 0
     println(s"[DEBUG] (waitForRisingEdge) Initial master.scl: $prevScl")
     while (cycles < maxCycles) {
       dut.clock.step(1)
-      val nowScl = dut.io.master.sclOut.peekBoolean()
+      val nowScl = dut.io.master1.sclOut.peekBoolean() &  dut.io.master2.sclOut.peekBoolean() 
       // Debug print every 50 cycles
       if (cycles % 50 == 0) {
         println(s"[DEBUG] (waitForRisingEdge) Cycle $cycles, master.scl: $nowScl")
@@ -101,7 +101,8 @@ object arbitrationTests {
 
   // Step the clock to allow the data writes to take effect
   dut.clock.step(1)
-
+  var master1Status = 0
+  var master2Status = 0
   // --- Wait for rising edges on SCL ---
   // Estimate the number of rising edges needed for the transaction.
   // For one byte write: address (8 bits) + ACK, data (8 bits) + ACK, plus STOP.
@@ -111,6 +112,14 @@ object arbitrationTests {
     while (edge < edgesToWait && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
       println(s"[DEBUG] Completed rising edge number $edge")
       edge += 1
+      if (edge == 8){
+          // --- Check arbitration results ---
+        master1Status = readAPB(dut.io.masterApb1, mstatusReg1.U).toInt
+        master2Status = readAPB(dut.io.masterApb2, mstatusReg2.U).toInt
+
+        println(s"[DEBUG] Master 1 status = 0x${master1Status.toHexString}")
+        println(s"[DEBUG] Master 2 status = 0x${master2Status.toHexString}")
+      }
     }
 
 
@@ -118,20 +127,13 @@ object arbitrationTests {
   val gotData = readAPB(dut.io.slaveApb, sdataReg.U).toInt
   println(s"[DEBUG] Final: Slave sdata read = 0x${gotData.toHexString}")
 
-  // --- Check arbitration results ---
-  val master1Status = readAPB(dut.io.masterApb1, mstatusReg1.U).toInt
-  val master2Status = readAPB(dut.io.masterApb2, mstatusReg2.U).toInt
-
-  println(s"[DEBUG] Master 1 status = 0x${master1Status.toHexString}")
-  println(s"[DEBUG] Master 2 status = 0x${master2Status.toHexString}")
-
   // Check which master lost arbitration
-  if ((master1Status & 0x4) != 0) {
+  if ((master1Status & 0x4) != 0) { //If arb is lost
     println("[DEBUG] Master 1 lost arbitration")
-    assert((master1Status & 0x3) == 2, "Master 1 status(1:0) should be 10 (arbitration lost)")
+    assert((master1Status & 0x3) == 2, "Master 1 status(1:0) should be 10 (Busy Bus)")
   } else if ((master2Status & 0x4) != 0) {
     println("[DEBUG] Master 2 lost arbitration")
-    assert((master2Status & 0x3) == 2, "Master 2 status(1:0) should be 10 (arbitration lost)")
+    assert((master2Status & 0x3) == 2, "Master 2 status(1:0) should be 10 (Busy Bus)")
   } else {
     assert(false, "Neither master lost arbitration, which is unexpected")
   }
