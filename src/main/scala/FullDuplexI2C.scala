@@ -28,10 +28,10 @@ class FullDuplexI2C(p: BaseParams) extends Module {
   slave.io.slave.scl := master.io.master.sclOut  
 
   // Model open-drain behavior for SDA
-  val sdaWire = Wire(Bool())
-  sdaWire := master.io.master.sdaOut & slave.io.slave.sdaOut
-  master.io.master.sdaIn := sdaWire
-  slave.io.slave.sdaIn := sdaWire
+  //val sdaWire = Wire(Bool())
+  //sdaWire := master.io.master.sdaOut & slave.io.slave.sdaOut
+  master.io.master.sdaIn := master.io.master.sdaOut & slave.io.slave.sdaOut
+  slave.io.slave.sdaIn := master.io.master.sdaOut & slave.io.slave.sdaOut
   /*
   slave.io.slave.sdaIn   := master.io.master.sdaOut    
 

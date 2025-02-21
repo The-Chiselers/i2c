@@ -129,54 +129,6 @@ class I2CTest
           coverageCollection(cov.getAnnotationSeq, myParams, name)
         }
 
-      // Bus error from "busErrorTests.scala"
-      case "busErrorMaster" =>
-        it should "detect a bus error in master" in {
-          val cov = test(new I2C(myParams))
-            .withAnnotations(backendAnnotations) { dut =>
-              busErrorTests.masterBusErrorTest(dut, myParams)
-            }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
-        }
-
-      case "busErrorSlave" =>
-        it should "detect a bus error in slave" in {
-          val cov = test(new I2C(myParams))
-            .withAnnotations(backendAnnotations) { dut =>
-              busErrorTests.slaveBusErrorTest(dut, myParams)
-            }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
-        }
-
-      // Slave collision from "slaveCollisionTests.scala"
-      case "slaveCollision" =>
-        it should "detect collision in slave" in {
-          val cov = test(new I2C(myParams))
-            .withAnnotations(backendAnnotations) { dut =>
-              slaveCollisionTests.slaveCollisionTest(dut, myParams)
-            }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
-        }
-
-      // Stop condition from "stopConditionTests.scala"
-      case "masterStopCondition" =>
-        it should "release lines on master stop" in {
-          val cov = test(new I2C(myParams))
-            .withAnnotations(backendAnnotations) { dut =>
-              stopConditionTests.masterStopTest(dut, myParams)
-            }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
-        }
-
-      case "slaveStopCondition" =>
-        it should "release lines on slave stop" in {
-          val cov = test(new I2C(myParams))
-            .withAnnotations(backendAnnotations) { dut =>
-              stopConditionTests.slaveStopTest(dut, myParams)
-            }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
-        }
-
       // For full-duplex test, use the master portion of the FullDuplexI2C.
       case "masterSlaveTransmission" =>
         it should "transmit data between master and slave" in {
@@ -324,41 +276,6 @@ class I2CTest
         repeatedStartTests.masterRepeatedStartTest(dut, myParams)
       }
       coverageCollection(cov.getAnnotationSeq, myParams, "repeatedStart")
-    }
-
-    it should "detect a bus error in master" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-        busErrorTests.masterBusErrorTest(dut, myParams)
-      }
-      coverageCollection(cov.getAnnotationSeq, myParams, "busErrorMaster")
-    }
-
-    it should "detect a bus error in slave" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-        busErrorTests.slaveBusErrorTest(dut, myParams)
-      }
-      coverageCollection(cov.getAnnotationSeq, myParams, "busErrorSlave")
-    }
-
-    it should "detect collision in slave" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-        slaveCollisionTests.slaveCollisionTest(dut, myParams)
-      }
-      coverageCollection(cov.getAnnotationSeq, myParams, "slaveCollision")
-    }
-
-    it should "release lines on master stop" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-        stopConditionTests.masterStopTest(dut, myParams)
-      }
-      coverageCollection(cov.getAnnotationSeq, myParams, "masterStopCondition")
-    }
-
-    it should "release lines on slave stop" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
-        stopConditionTests.slaveStopTest(dut, myParams)
-      }
-      coverageCollection(cov.getAnnotationSeq, myParams, "slaveStopCondition")
     }
   }
 

@@ -31,18 +31,18 @@ class MultiMasterI2C(p: BaseParams) extends Module {
   slave.io.slave <> io.slave   
 
 
-  val sclWire = Wire(Bool())
-  sclWire := master1.io.master.sclOut & master2.io.master.sclOut
-  slave.io.slave.scl := sclWire
-  master1.io.master.sclIn := sclWire
-  master2.io.master.sclIn := sclWire
+  //val sclWire = Wire(Bool())
+  //sclWire := master1.io.master.sclOut & master2.io.master.sclOut
+  slave.io.slave.scl := master1.io.master.sclOut & master2.io.master.sclOut
+  master1.io.master.sclIn := master1.io.master.sclOut & master2.io.master.sclOut
+  master2.io.master.sclIn := master1.io.master.sclOut & master2.io.master.sclOut
 
   // Model open-drain behavior for SDA
-  val sdaWire = Wire(Bool())
-  sdaWire := master1.io.master.sdaOut & master2.io.master.sdaOut & slave.io.slave.sdaOut
-  master1.io.master.sdaIn := sdaWire
-  master2.io.master.sdaIn := sdaWire
-  slave.io.slave.sdaIn := sdaWire
+  //val sdaWire = Wire(Bool())
+  //sdaWire := master1.io.master.sdaOut & master2.io.master.sdaOut & slave.io.slave.sdaOut
+  master1.io.master.sdaIn := master1.io.master.sdaOut & master2.io.master.sdaOut & slave.io.slave.sdaOut
+  master2.io.master.sdaIn := master1.io.master.sdaOut & master2.io.master.sdaOut & slave.io.slave.sdaOut
+  slave.io.slave.sdaIn := master1.io.master.sdaOut & master2.io.master.sdaOut & slave.io.slave.sdaOut
   
 
   master1.io.slave.scl := 0.U

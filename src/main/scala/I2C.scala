@@ -278,10 +278,7 @@ class I2C(p: BaseParams) extends Module {
           *  Set Master Bus FSM to BUSY
           *  Then, put FSM back into IDLE until line is freed up
           */
-          mstatus := mstatus | (1.U << 2.U) //Set ARBLOST
-          mstatus := mstatus | (1.U << 6)  // WIF = 1
-          mstatus := mstatus & ~(1.U << 0.U)  //Set Bus State Reg to Busy
-          mstatus := mstatus | (1.U << 1.U)   //Set Bus State Reg to Busy
+          mstatus := (mstatus | (1.U(7.W) << 2) | (1.U(7.W) << 6) | (1.U(7.W) << 1)) & ~(1.U(7.W) << 0)
           busStateReg := BusState.BUSY
           stateReg := STATE_IDLE
         }
@@ -302,10 +299,11 @@ class I2C(p: BaseParams) extends Module {
           rwBit := io.slave.sdaIn
           // If address matches, set AP=1 in sstatus, then do SENDACKSLAVE
           when(saddr === addrShift) {
-            sstatus := sstatus | 1.U
+            sstatus := sstatus | (1.U(8.W) << 0.U) | (1.U(8.W) << 6.U)
             stateReg := STATE_SENDACKSLAVE
           } .otherwise {
-            stateReg := STATE_IDLE
+            detectStopConditionSlave()
+            stateReg := STATE_WAITSTOP
           }
         }
       }
@@ -315,6 +313,7 @@ class I2C(p: BaseParams) extends Module {
     // WAITACKMASTER
     // -------------------------------------------------------
     is(STATE_WAITACKMASTER) {
+      //io.master.sdaOut := 0.U
       prevClk := io.master.sclOut
       frameCounter := 0.U
       when(~prevClk & io.master.sclOut) {
@@ -344,8 +343,7 @@ class I2C(p: BaseParams) extends Module {
             *  Set Clock Hold (CLKHOLD = 1)
             *  Then, prepare to read data from slave via STATE_MASTERREAD
             */
-            mstatus := mstatus & ~(1.U << 4) // RXACK = 0
-            mstatus := mstatus | (1.U << 5)  // CLKHOLD = 1
+            mstatus := (mstatus & ~(1.U(7.W) << 4)) | (1.U(7.W) << 5)
             sclReg := false.B  // Hold SCL low
 
             i2cShift     := 0.U
@@ -361,8 +359,8 @@ class I2C(p: BaseParams) extends Module {
             *  Set Recieved Acknowledge (RXACK = 1)
             *  Then, issue a STOP condition to end the transaction
             */
-            mstatus := mstatus | (1.U << 6)  // WIF = 1
-            mstatus := mstatus | (1.U << 4)  // RXACK = 1
+            //io.master.sdaOut := 0.U
+            mstatus := mstatus | ((1.U(7.W) << 6) | (1.U(7.W) << 4))
             sclReg := true.B
             stateReg := STATE_SENDSTOP
         }
@@ -391,6 +389,7 @@ class I2C(p: BaseParams) extends Module {
           }
         } .otherwise {
           // No ACK => assume NACK => go to WAITSTOP
+          detectStopConditionSlave()
           stateReg := STATE_WAITSTOP
         }
       }
@@ -403,6 +402,8 @@ class I2C(p: BaseParams) extends Module {
       prevClk := io.slave.scl
       io.slave.sdaOut := 0.U
       frameCounter := 0.U
+      sstatus := sstatus & (~(1.U << 1)).asUInt //Clear 2nd bit
+      sstatus := sstatus | (rwBit << 1).asUInt //Set 2nd bit
       when(~prevClk & io.slave.scl) {
         stateReg := Mux(rwBit === 1.U, STATE_SLAVEWRITE, STATE_SLAVEREAD)
       }
@@ -470,6 +471,7 @@ class I2C(p: BaseParams) extends Module {
             when(sctrla(7) === 1.U) {
               sstatus := sstatus | (1.U << 7.U)
             }
+            detectStopConditionSlave()
             stateReg := STATE_WAITSTOP
           } .otherwise {
             prevSda := io.slave.sdaIn
@@ -522,6 +524,7 @@ class I2C(p: BaseParams) extends Module {
             when(sctrla(7) === 1.U) {
               sstatus := sstatus | (1.U << 7.U)
             }
+            detectStopConditionSlave()
             stateReg := STATE_WAITSTOP
           } .otherwise {
             stateReg := STATE_SENDACKSLAVE
@@ -548,12 +551,9 @@ class I2C(p: BaseParams) extends Module {
     // SLAVE WAIT STOP
     // -------------------------------------------------------
     is(STATE_WAITSTOP) {
-      // If SCL=1 and SDA=1 => STOP => set APIF=1 (bit6), AP=0.
-      when(io.slave.scl && io.slave.sdaIn === 1.U) {
-        sstatus := (sstatus & ~1.U) | (1.U << 6)
+      when(detectStopConditionSlave()){
+      sstatus := (sstatus & ~(1.U(8.W) << 0.U)) | (1.U(8.W) << 6.U)
         stateReg := STATE_IDLE
-      } .otherwise {
-        stateReg := STATE_WAITSTOP
       }
     }
   }
@@ -566,26 +566,22 @@ class I2C(p: BaseParams) extends Module {
     switch(busStateReg) {
       is(BusState.IDLE) {
         when(maddrFlag) { //Internal START Condition
-          mstatus := mstatus | (1.U << 0.U)
-          mstatus := mstatus & ~(1.U << 1.U)          
+          mstatus := (mstatus | (1.U(7.W) << 0)) & ~(1.U(7.W) << 1)        
           busStateReg := BusState.OWNER
         }.elsewhen(detectStartConditionMaster()){ //External START Condition
-          mstatus := mstatus & ~(1.U << 0.U)
-          mstatus := mstatus | (1.U << 1.U)          
+          mstatus := (mstatus & ~(1.U(7.W) << 0)) | (1.U(7.W) << 1)       
           busStateReg := BusState.BUSY
         }
       }
       is(BusState.BUSY) {
         when(detectStopConditionMaster()) { //STOP Condition Detected
-          mstatus := mstatus & ~(1.U << 0.U)
-          mstatus := mstatus & ~(1.U << 1.U) 
+          mstatus := mstatus & ~((1.U(7.W) << 0) | (1.U(7.W) << 1)) 
           busStateReg := BusState.IDLE
         }
       }
       is(BusState.OWNER) {
         when(stateReg === STATE_SENDSTOP) { //Need to add check for arb lost
-          mstatus := mstatus & ~(1.U << 0.U)
-          mstatus := mstatus & ~(1.U << 1.U)           
+          mstatus := mstatus & ~((1.U(7.W) << 0) | (1.U(7.W) << 1))           
           busStateReg := BusState.IDLE
         }
       }
@@ -642,16 +638,24 @@ class I2C(p: BaseParams) extends Module {
 
   def detectStopConditionSlave(): Bool = {
     val stopDetected = WireInit(false.B)
-    prevClkBus := io.slave.scl
     prevSdaBus := io.slave.sdaIn
-
-    when(~prevClkBus && io.slave.scl) {
-      ssFlags := ssFlags | (1.U << 3.U)
+    prevClk := io.slave.scl
+    
+    when(~prevClk && io.slave.scl) {
+      ssFlags := ssFlags | (1.U << 4.U)
     }
-    when(ssFlags(3) === 1.U) {
-      when((io.slave.scl) && (prevSdaBus === 0.U) && (io.slave.sdaIn === 1.U)) {
-        ssFlags := ssFlags & ~(1.U << 3.U)
+
+    when (ssFlags(4) === 1.U && prevClk && io.slave.scl) {
+      edgeCounter := edgeCounter + 1.U
+    }
+    when((edgeCounter === 1.U) && (ssFlags(4) === 1.U)) { 
+      when ((prevSdaBus === 0.U) && (io.slave.sdaIn === 1.U)) {
+        edgeCounter := 0.U
+        ssFlags := ssFlags & ~(1.U << 4.U)
         stopDetected := true.B
+      }.otherwise {
+        edgeCounter := 0.U
+        ssFlags := ssFlags & ~(1.U << 4.U)
       }
     }
     stopDetected //Return
@@ -662,15 +666,24 @@ class I2C(p: BaseParams) extends Module {
     prevClkBus := io.master.sclIn
     prevSdaBus := io.master.sdaIn
 
-    when(prevClkBus && io.master.sclIn) {
-      edgeCounter := edgeCounter + 1.U
+    when(~prevClkBus && io.master.sclIn) {
+      ssFlags := ssFlags | (1.U << 4.U)
     }
 
-    when((edgeCounter === 3.U) && (prevSdaBus === 0.U) && (io.master.sdaIn === 1.U)) {
-      stopDetected := true.B
+    when (ssFlags(4) === 1.U && prevClkBus && io.master.sclIn) {
+      edgeCounter := edgeCounter + 1.U
+    }
+    when((edgeCounter === 1.U) && (ssFlags(4) === 1.U)) { 
+      when ((prevSdaBus === 0.U) && (io.master.sdaIn === 1.U)) {
+        edgeCounter := 0.U
+        ssFlags := ssFlags & ~(1.U << 4.U)
+        stopDetected := true.B
+      }.otherwise {
+        edgeCounter := 0.U
+        ssFlags := ssFlags & ~(1.U << 4.U)
+      }
     }
     stopDetected //Return
   }
 
 }
-

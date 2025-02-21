@@ -299,7 +299,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
 
     // --- Read master status and check RXACK (bit3 of mstatus) ---
   val mstat = readAPB(dut.io.masterApb, mstatusReg.U).toInt
-  val rxack = (mstat >> 3) & 1  // Shift by 3 to get bit3 (RXACK)
+  val rxack = (mstat >> 4) & 1  // Shift by 3 to get bit4 (RXACK)
   println(s"[DEBUG] Master MSTATUS = 0x${mstat.toHexString}, RXACK = $rxack")
   assert(rxack == 1, f"Expected NACK but got ACK (MSTATUS=0x$mstat%02X)")
   }
@@ -351,7 +351,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
 
     // Wait (poll) until the slave's sstatus reflects a STOP condition.
     // That is, wait until sstatus has APIF = 1 (assumed bit6) and AP = 0 (assumed bit0).
-    val timeout = 1000
+    val timeout = 100
     var cycles = 0
     var stopDetected = false
     while (cycles < timeout && !stopDetected) {
@@ -406,7 +406,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
 
     // Read master status and check that RXACK is set (assumed to be bit4)
     val mstat = readAPB(dut.io.masterApb, mstatusReg.U).toInt
-    val rxack = (mstat >> 3) & 1
+    val rxack = (mstat >> 4) & 1
     println(s"[DEBUG] Master MSTATUS = 0x${mstat.toHexString}, RXACK = $rxack")
     assert(rxack == 1, f"Expected NACK (rxack=1) but got MSTATUS=0x$mstat%02X")
   }
