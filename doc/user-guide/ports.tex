@@ -2,11 +2,15 @@
 
 \subsection{I2C Interface}
 
-The I2C core requires two primary signals, \textbf{SDA} (Serial Data) and \textbf{SCL} (Serial Clock), both configured for open-drain (wired-AND) operation with external pull-up resistors. Below is a sample table describing them in the style of the SPI doc.
+The ports for \textbf{I2C} are shown below in 
+Table 1. The width of several ports is controlled 
+by the following input parameters:
 
 \renewcommand*{\arraystretch}{1.4}
+
 \begingroup
 \small
+
 \rowcolors{2}{gray!30}{gray!10} 
 \arrayrulecolor{gray!80}
 
@@ -16,33 +20,54 @@ The I2C core requires two primary signals, \textbf{SDA} (Serial Data) and \textb
   | p{0.12\textwidth}
   | p{0.43\textwidth} |
 }
-  \hline
-  \rowcolor{black}
-  \textcolor{white}{\textbf{Port Name}} &
-  \textcolor{white}{\textbf{Width}} &
-  \textcolor{white}{\textbf{Direction}} &
-  \textcolor{white}{\textbf{Description}} \\ 
-  \hline
-  \endfirsthead
 
-  \hline
-  \rowcolor{black}
-  \textcolor{white}{\textbf{Port Name}} &
-  \textcolor{white}{\textbf{Width}} &
-  \textcolor{white}{\textbf{Direction}} &
-  \textcolor{white}{\textbf{Description}} \\
-  \hline
-  \endhead
+\hline
+\rowcolor{gray}
+\textcolor{white}{\textbf{Port Name}} & 
+\textcolor{white}{\textbf{Width}} & 
+\textcolor{white}{\textbf{Direction}} & 
+\textcolor{white}{\textbf{Description}} \\ \hline
+\endfirsthead
 
-  \hline
-  \endfoot
+\hline
+\rowcolor{gray}
+\textcolor{white}{\textbf{Port Name}} & 
+\textcolor{white}{\textbf{Width}} & 
+\textcolor{white}{\textbf{Direction}} & 
+\textcolor{white}{\textbf{Description}}\\ \hline
+\endhead
 
-SDA & 1 & In/Out (Open Drain) & Serial Data line for I2C. Must be pulled up externally. \\ \hline
-SCL & 1 & In/Out (Open Drain) & Serial Clock line for I2C. Must be pulled up externally. \\ \hline
+\hline
+\endfoot
 
-\caption{I2C Ports Descriptions}
-\label{table:ports}
+sclIn & 
+1 & 
+Input &
+Input Clock Line to Master Interface. Master needs to read clock line for multi-master applications. \\ \hline
+
+sclOut &
+1 &
+Output &
+Output Clock Line from Master Interface. Master needs to drive clock line for master-slave half-duplex communication. \\ \hline
+
+sdaIn &
+1 &
+Input &
+Input Data Line to Master and Slave Interface. Used by Master to read data from Slave. Used by Slave to read data from Master. \\ \hline
+
+sdaOut &
+1 &
+Output &
+Output Data Line from Master and Slave Interface. Used by Master to write data to Slave. Used by Slave to write data to Master. \\ \hline
+
+scl & 
+1 & 
+Input & 
+Input Clock Line to Slave Interface. Slave needs to read clock line for master-slave half-duplex communication. \\ \hline
+
 \end{longtable}
+\captionsetup{aboveskip=0pt}
+\captionof{table}{I2C Ports Descriptions}\label{table:ports}
 \endgroup
 
 \subsection{Apb3 Interface}

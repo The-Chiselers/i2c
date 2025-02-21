@@ -1,6 +1,7 @@
 \section{Parameter Descriptions}
 
-Below is an example table for top-level parameters controlling the I2C core’s configuration. Adjust as needed.
+The parameters for \textbf{I2C} are shown below in
+Table 3.
 
 \renewcommand*{\arraystretch}{1.4}
 \begingroup
@@ -9,32 +10,31 @@ Below is an example table for top-level parameters controlling the I2C core’s 
 \arrayrulecolor{gray!50}
 
 \begin{longtable}[H]{
-    | p{0.22\textwidth}
-    | p{0.12\textwidth}
-    | p{0.05\textwidth}
-    | p{0.05\textwidth}
-    | p{0.50\textwidth} |
-  }
-  \hline
-  \rowcolor{black}
-  \textcolor{white}{\textbf{Name}} &
-  \textcolor{white}{\textbf{Type}} &
-  \textcolor{white}{\textbf{Min}} &
-  \textcolor{white}{\textbf{Max}} &
-  \textcolor{white}{\textbf{Description}} \\ 
-  \hline \hline
-  \endfirsthead
+  | p{0.25\textwidth}
+  | p{0.10\textwidth}
+  | p{0.05\textwidth}
+  | p{0.05\textwidth}
+  | p{0.47\textwidth} |
+}
+\hline
+\rowcolor{gray}
 
-  \textcolor{white}{\textbf{Name}} &
-  \textcolor{white}{\textbf{Type}} &
-  \textcolor{white}{\textbf{Min}} &
-  \textcolor{white}{\textbf{Max}} &
-  \textcolor{white}{\textbf{Description}} \\ 
-  \hline \hline
-  \endhead
+\textcolor{white}{\textbf{Name}} &
+\textcolor{white}{\textbf{Type}} &
+\textcolor{white}{\textbf{Min}} &
+\textcolor{white}{\textbf{Max}} &
+\textcolor{white}{\textbf{Description}} \\ \hline
+\endfirsthead
 
-  \hline
-  \endfoot
+\textcolor{white}{\textbf{Name}} &
+\textcolor{white}{\textbf{Type}} &
+\textcolor{white}{\textbf{Min}} &
+\textcolor{white}{\textbf{Max}} &
+\textcolor{white}{\textbf{Description}}            \\ \hline
+\endhead
+
+
+\endfoot
 
 clkFreq &
 Integer &
@@ -42,19 +42,39 @@ Integer &
 - &
 The main system clock frequency in MHz used by the I2C core. \\ \hline
 
-i2cSpeed &
+dataWidth &
 Integer &
-100 &
-1000 &
-I2C bus speed in kHz (e.g., 100 for Standard mode, 400 for Fast mode, 1000 for Fast+).\\ \hline
+8 &
+32 &
+Transmissions can be 8, 16, or 32 bits in size. Used by The PWDATA, PRDATA, mdata, and sdata. \\ \hline
 
-addrWidth &
+addrWidth     &
+Int           &
+1             &
+$\leq$ 32       &
+The Apb address bus width  \\ \hline
+
+regWidth &
 Integer &
-7 &
-10 &
-Address width: typically 7-bit addressing, optionally support 10-bit. \\ \hline
+8 &
+8 &
+Size of control and interrupt registers. Maximum number of addressable slaves is $2^8 - 1$.
 
-\caption{I2C Core Parameter Descriptions}
-\label{table:params}
 \end{longtable}
+\captionsetup{aboveskip=0pt}
+\captionof{table}{Parameter Descriptions}\label{table:params}
 \endgroup
+
+The I2C is instantiated into a design as follows:
+
+\begin{lstlisting}[language=Scala]
+
+  // Valid I2C Instantiation Example
+  val myI2C = new I2C(
+    clkFreq   = 50,
+    dataWidth = 32, 
+    addrWidth =  8, 
+    regWidth  =  8) 
+
+  \end{lstlisting}
+
