@@ -4,6 +4,7 @@ import chisel3._
 import chiseltest._
 import tech.rocksavage.chiselware.apb.ApbBundle
 import tech.rocksavage.chiselware.apb.ApbTestUtils._
+import scala.util.Random
 
 /** Tests for multi-master arbitration lost scenarios.
   * In a real test, you'd need two "masters" contending on the bus. 
@@ -71,8 +72,8 @@ object arbitrationTests {
   val mdataReg2  = dut.getMasterRegisterMap2.getAddressOfRegister("mdata").get
   val mstatusReg2 = dut.getMasterRegisterMap2.getAddressOfRegister("mstatus").get
 
-  val master1Data = 0xAB
-  val master2Data = 0xCD
+  val master1Data = BigInt(params.dataWidth, Random)
+  val master2Data = BigInt(params.dataWidth, Random)
 
   // Fork to write maddr, mbaud, and mctrl registers concurrently for both masters
   fork {
@@ -107,12 +108,12 @@ object arbitrationTests {
   // Estimate the number of rising edges needed for the transaction.
   // For one byte write: address (8 bits) + ACK, data (8 bits) + ACK, plus STOP.
   // Waiting for ~30 rising edges should be more than sufficient.
-  val edgesToWait = 30
+  val edgesToWait = 60
     var edge = 0
     while (edge < edgesToWait && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
       println(s"[DEBUG] Completed rising edge number $edge")
       edge += 1
-      if (edge == 8){
+      if (edge == 16){
           // --- Check arbitration results ---
         master1Status = readAPB(dut.io.masterApb1, mstatusReg1.U).toInt
         master2Status = readAPB(dut.io.masterApb2, mstatusReg2.U).toInt
@@ -141,10 +142,10 @@ object arbitrationTests {
   // Check which master won arbitration and verify the data
   if ((master1Status & 0x4) == 0) {
     println("[DEBUG] Master 1 won arbitration")
-    assert(gotData == master1Data, f"Slave read 0x$gotData%02X, expected 0x$master1Data%02X")
+    assert(gotData == master1Data.toInt, f"Slave read 0x$gotData%02X, expected 0x$master1Data%02X")
   } else if ((master2Status & 0x4) == 0) {
     println("[DEBUG] Master 2 won arbitration")
-    assert(gotData == master2Data, f"Slave read 0x$gotData%02X, expected 0x$master2Data%02X")
+    assert(gotData == master2Data.toInt, f"Slave read 0x$gotData%02X, expected 0x$master2Data%02X")
   }
 }
 

@@ -71,9 +71,10 @@ class I2CTest
   /** A convenience method to run a single named test. */
   def runTest(name: String): Unit = {
     behavior of name
-
+    val validDataWidths = Seq(8, 16, 32)
+    val dataWidth = validDataWidths(Random.nextInt(validDataWidths.length))
     // Example I2C parameters
-    val myParams = BaseParams(dataWidth = 8, addrWidth = 16, regWidth = 8, clkFreq = 100, coverage = false)
+    val myParams = BaseParams(dataWidth = 32, addrWidth = 16, regWidth = 8, clkFreq = 100, coverage = false)
     info(s"Data Width: ${myParams.dataWidth}, Address Width: ${myParams.addrWidth}")
     info("--------------------------------")
 

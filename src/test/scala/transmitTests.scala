@@ -46,7 +46,7 @@ object transmitTests {
     val sdataReg  = dut.getSlaveRegisterMap.getAddressOfRegister("sdata").get
 
     // Put some known data into the slave's SDATA register (0x5A).
-    val slaveData = 0xAB
+    val slaveData = BigInt(params.dataWidth, Random)
     writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)        // enable the slave
     writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)      // slave address = 0x50
     writeAPB(dut.io.slaveApb, sdataReg.U, slaveData.U) // put 0x5A in SDATA
@@ -67,7 +67,7 @@ object transmitTests {
     writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
 
     // --- Step the clock "slowly" in single increments
-    for(_ <- 0 until 300) {
+    for(_ <- 0 until 800) {
       dut.clock.step(1)
     }
 
@@ -75,7 +75,7 @@ object transmitTests {
     val masterReceived = readAPB(dut.io.masterApb, mdataReg.U).toInt
     // We expect it to match slaveData (0x5A)
     assert(
-      masterReceived == slaveData,
+      masterReceived == slaveData.toInt,
       f"Master received 0x$masterReceived%02X, expected 0x$slaveData%02X"
     )
   }
@@ -136,7 +136,7 @@ object transmitTests {
     val mctrlReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrl").get
     val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
 
-    val masterData = 0xAB
+    val masterData = BigInt(params.dataWidth, Random)
     // println(s"[DEBUG] Configuring master registers: masterData = 0x${masterData.toHexString}")
     writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)   // 0x50 + R/W=0
     writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)      // small BAUD => ~7 cycles per half period
@@ -149,7 +149,7 @@ object transmitTests {
     // Estimate the number of rising edges needed for the transaction.
     // For one byte write: address (8 bits) + ACK, data (8 bits) + ACK, plus STOP.
     // Waiting for ~30 rising edges should be more than sufficient.
-    val edgesToWait = 30
+    val edgesToWait = 50
     println(s"[DEBUG] Waiting for $edgesToWait rising edges on master.scl")
     var edge = 0
     while (edge < edgesToWait && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
@@ -159,8 +159,8 @@ object transmitTests {
 
     // --- Read the slave's sdata register ---
     val gotData = readAPB(dut.io.slaveApb, sdataReg.U).toInt
-    println(s"[DEBUG] Final: Slave sdata read = 0x${gotData.toHexString}, expected = 0x${masterData.toHexString}")
-    assert(gotData == masterData, f"Slave read 0x$gotData%02X, expected 0x$masterData%02X")
+    println(s"[DEBUG] Final: Slave sdata read = 0x${gotData.toString}, expected = 0x${masterData.toString}")
+    assert(gotData == masterData.toInt, f"Slave read 0x$gotData%02X, expected 0x$masterData%02X")
   }
 
   /**
@@ -197,7 +197,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
   val mctrlReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrl").get
   val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
 
-  val masterData1 = 0xAB
+  val masterData1 = BigInt(params.dataWidth, Random)
   // Write the address (0xA0) and then start the master.
   writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)
   writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
@@ -209,7 +209,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
   dut.clock.step(1)
   
   // Wait for enough rising edges for the transaction to complete.
-  val edgesToWait1 = 20
+  val edgesToWait1 = 60
     var edge = 0
     while (edge < edgesToWait1 && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
       println(s"[DEBUG] Completed rising edge number $edge")
@@ -219,8 +219,8 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
   
   // Read the slave's data register
   val slaveReceived = readAPB(dut.io.slaveApb, sdataReg.U).toInt
-  println(s"[DEBUG] Phase 1: Slave received = 0x${slaveReceived.toHexString}, expected = 0x${masterData1.toHexString}")
-  assert(slaveReceived == masterData1,
+  println(s"[DEBUG] Phase 1: Slave received = 0x${slaveReceived.toHexString}, expected = 0x${masterData1.toString}")
+  assert(slaveReceived == masterData1.toInt,
     f"Phase 1 failed: Slave received 0x$slaveReceived%02X, expected 0x$masterData1%02X")
 
   // ---------------------------
@@ -228,7 +228,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
   // ---------------------------
   // Reconfigure the slave for transmitting:
   // (Keep the same slave address, but now preload its sdata register with new data)
-  val slaveData2 = 0xCD
+  val slaveData2 = BigInt(params.dataWidth, Random)
   writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)         // ensure slave is enabled
   writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)         // same slave address
   writeAPB(dut.io.slaveApb, sdataReg.U, slaveData2.U)   // preload slave data for transmission
@@ -244,7 +244,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
   writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
   
   // Wait for the read transaction to complete by waiting for rising edges.
-  val edgesToWait2 = 20
+  val edgesToWait2 = 60
   var edge2 = 0
   while (edge2 < edgesToWait2 && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
     println(s"[DEBUG] Completed rising edge number $edge")
@@ -254,8 +254,8 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
   
   // Read the master's data register
   val masterReceived = readAPB(dut.io.masterApb, mdataReg.U).toInt
-  println(s"[DEBUG] Phase 2: Master received = 0x${masterReceived.toHexString}, expected = 0x${slaveData2.toHexString}")
-  assert(masterReceived == slaveData2,
+  println(s"[DEBUG] Phase 2: Master received = 0x${masterReceived.toHexString}, expected = 0x${slaveData2.toString}")
+  assert(masterReceived == slaveData2.toInt,
     f"Phase 2 failed: Master received 0x$masterReceived%02X, expected 0x$slaveData2%02X")
 }
 
