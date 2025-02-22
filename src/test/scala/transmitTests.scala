@@ -512,7 +512,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
 
   
   def clockStretchingMaster(dut: FullDuplexI2C, params: BaseParams): Unit = { 
-    implicit val clk: Clock = dut.clock
+     implicit val clk: Clock = dut.clock
     dut.clock.setTimeout(0)
 
     // ---------------------------
@@ -521,23 +521,23 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
     val sctrlReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrl").get
     val saddrReg  = dut.getSlaveRegisterMap.getAddressOfRegister("saddr").get
     val sdataReg  = dut.getSlaveRegisterMap.getAddressOfRegister("sdata").get
-
+    val sstatusReg = dut.getSlaveRegisterMap.getAddressOfRegister("sstatus").get
     // Enable slave and set address and clock stretching
-    writeAPB(dut.io.slaveApb, sctrlReg.U, 17.U) //1 0001
+    var slaveData1 = BigInt(params.dataWidth, Random)
+    writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U) //0 0001
     writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)
+    writeAPB(dut.io.slaveApb, sdataReg.U, slaveData1.U)
 
     // Configure master for a write transaction
     val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
     val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
     val mctrlReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrl").get
     val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
-
-    val masterData1 = BigInt(params.dataWidth, Random)
-    writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)
+    val mstatusReg =  dut.getMasterRegisterMap.getAddressOfRegister("mstatus").get
+    writeAPB(dut.io.masterApb, maddrReg.U, 0xA1.U)
     writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
     writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
     dut.clock.step(100)
-    writeAPB(dut.io.masterApb, mdataReg.U, masterData1.U)
     dut.clock.step(1)
 
     // Wait for transaction completion
@@ -546,77 +546,53 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
     while (edge < edgesToWait1 && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
       println(s"[DEBUG] Completed rising edge number $edge")
       edge += 1
-      if (edge == 4){
-        writeAPB(dut.io.slaveApb, sctrlReg.U, 19.U) //1 0011
-        dut.clock.step(10) // Simulate delay before releasing SCL
-        writeAPB(dut.io.slaveApb, sctrlReg.U, 3.U)  //0 0011
+      if (edge == 15){
+        writeAPB(dut.io.masterApb, mctrlReg.U, 19.U) //1 0011
+        dut.clock.step(50) // Simulate delay before releasing SCL
+        writeAPB(dut.io.masterApb, mctrlReg.U, 3.U)  //0 0011
       }
     }
 
     // Read the slave's data register
-    val slaveReceived = readAPB(dut.io.slaveApb, sdataReg.U).toInt
-    println(s"[DEBUG] Phase 1: Slave received = 0x${slaveReceived.toHexString}, expected = 0")
-    assert(slaveReceived == 0,
-      f"Phase 1 failed: Slave received 0x$slaveReceived%02X, expected 0")
+    //var slaveReceived = readAPB(dut.io.slaveApb, sdataReg.U).toInt   // Extract last 8 bits
+    //masterData1 = masterData1 & 0xFF
+     val mstat = readAPB(dut.io.masterApb, mstatusReg.U).toInt
+    val rxack = (mstat >> 5) & 1
+    println(s"[DEBUG] Master MSTATUS = 0x${mstat.toHexString}, RXACK = $rxack")
+    assert(rxack == 1, f"Expected CLOCKHOLD = 1 but got MSTATUS=0x$mstat%02X")
 
     // ---------------------------
-    // PHASE 2: Slave Write → Master Read w/ Clock Stretching ACK
+    // PHASE 2: Slave Write → Master Read Clock Stretch ACK
     // ---------------------------
     // Enable slave and set address and clock stretching
-    writeAPB(dut.io.slaveApb, sctrlReg.U, 17.U) //1 0001
+    var slaveData2 = BigInt(params.dataWidth, Random)
+    writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U) //0 0001
     writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)
+    writeAPB(dut.io.slaveApb, sdataReg.U, slaveData2.U)
 
-    val masterData2 = BigInt(params.dataWidth, Random)
-    writeAPB(dut.io.masterApb, maddrReg.U, 0xA0.U)
+    writeAPB(dut.io.masterApb, maddrReg.U, 0xA1.U)
     writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
     writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
     dut.clock.step(100)
-    writeAPB(dut.io.masterApb, mdataReg.U, masterData2.U)
     dut.clock.step(1)
-
     // Wait for transaction completion
     val edgesToWait2 = 60
     edge = 0
     while (edge < edgesToWait2 && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
       println(s"[DEBUG] Completed rising edge number $edge")
       edge += 1
-      if (edge == 4){
-        writeAPB(dut.io.slaveApb, sctrlReg.U, 17.U) //1 0001  ACK
-        dut.clock.step(10) // Simulate delay before releasing SCL
-        writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)  //0 0001
+      if (edge == 10){
+        writeAPB(dut.io.masterApb, mctrlReg.U, 17.U) //1 0011
+        dut.clock.step(50) // Simulate delay before releasing SCL
+        writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)  //0 0001
       }
     }
 
     // Read the slave's data register
-    val slaveReceived2 = readAPB(dut.io.slaveApb, sdataReg.U).toInt
-    println(s"[DEBUG] Phase 2: Slave received = 0x${slaveReceived2.toHexString}, expected = 0x${masterData2.toString}")
-    assert(slaveReceived2 == 0,
-      f"Phase 2 failed: Slave received 0x$slaveReceived2%02X, expected 0x$masterData2%02X")
-
+    val masterReceived2 = readAPB(dut.io.masterApb, mdataReg.U).toInt
+    println(s"[DEBUG] Phase 2: Master received = 0x${masterReceived2.toHexString}, expected = 0x${slaveData2.toString}")
+    assert(masterReceived2 == slaveData2.toInt,
+      f"Phase 2 failed: Slave received 0x$masterReceived2%02X, expected 0x$slaveData2%02X")
   }
     
-    // ---------------------------
-    // PHASE 2: Slave Write → Master Read
-    // ---------------------------
-  //   val slaveData2 = BigInt(params.dataWidth, Random)
-  //   writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)
-  //   writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)
-  //   writeAPB(dut.io.slaveApb, sdataReg.U, slaveData2.U)
-
-  //   writeAPB(dut.io.masterApb, maddrReg.U, 0xA1.U)
-  //   writeAPB(dut.io.masterApb, mdataReg.U, 0x00.U)
-  //   writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
-  //   writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
-
-  //   val edgesToWait2 = 60
-  //   var edge2 = 0
-  //   while (edge2 < edgesToWait2 && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
-  //     println(s"[DEBUG] Completed rising edge number $edge2")
-  //     edge2 += 1
-  //   }
-
-  //   val masterReceived = readAPB(dut.io.masterApb, mdataReg.U).toInt
-  //   println(s"[DEBUG] Phase 2: Master received = 0x${masterReceived.toHexString}, expected = 0x${slaveData2.toString}")
-  //   assert(masterReceived == slaveData2.toInt,
-  //     f"Phase 2 failed: Master received 0x$masterReceived%02X, expected 0x$slaveData2%02X")
 }
