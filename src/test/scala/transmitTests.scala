@@ -455,7 +455,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
     }
 
     // Read the slave's data register
-    var slaveReceived = readAPB(dut.io.slaveApb, sdataReg.U).toInt   // Extract last 8 bits
+    //var slaveReceived = readAPB(dut.io.slaveApb, sdataReg.U).toInt   // Extract last 8 bits
     //masterData1 = masterData1 & 0xFF
     var stopDetected = false
     val sstat = readAPB(dut.io.slaveApb, sstatusReg.U).toInt
@@ -464,7 +464,7 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
     if (apif == 1 && ap == 0) {
       stopDetected = true
     }
-    println(s"[DEBUG] Phase 1: Slave received = 0x${slaveReceived.toHexString}, expected 0x${masterData1.toString}")
+    println(s"[DEBUG] Phase 1: APIF ${apif} AP ${ap}")
 
     // Assert that received data is 0
     //assert(slaveReceived == masterData1.toInt,

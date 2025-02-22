@@ -56,8 +56,7 @@ class I2C(p: BaseParams) extends Module {
   registerMap.createAddressableRegister(saddr, "saddr")
   val sdata     = RegInit(0.U(p.dataWidth.W))
   registerMap.createAddressableRegister(sdata, "sdata")
-  val saddrmask = RegInit(0.U(p.regWidth.W))
-  registerMap.createAddressableRegister(saddrmask, "saddrmask")
+
   // ------------------------------------------------------------------------
   // 2) AddrDecode
   // ------------------------------------------------------------------------
@@ -80,15 +79,15 @@ class I2C(p: BaseParams) extends Module {
         when(addrDecode.io.sel(reg.id)) {
           if(reg.name == "mdata"){
             i2cShift := io.apb.PWDATA
-            mstatus := mstatus & "b00010111".U //Clear interrupts
+            mstatus := mstatus & "b00010011".U //Clear interrupts
           }
           if (reg.name == "sdata"){
             i2cShift := io.apb.PWDATA
-            sstatus := sstatus & "b01111111".U //Clear interrupts
+            sstatus := sstatus & "b00011111".U //Clear interrupts
           }
           if (reg.name == "maddr"){
             maddrFlag := true.B
-            mstatus := mstatus & "b00010111".U //Clear interrupts
+            mstatus := mstatus & "b00010011".U //Clear interrupts
           }
           if(reg.name == "mstatus"){
             mstatus := mstatus & ~io.apb.PWDATA
@@ -103,9 +102,15 @@ class I2C(p: BaseParams) extends Module {
       // READ from a register
       for (reg <- registerMap.getRegisters) {
         when(addrDecode.io.sel(reg.id)) {
-          if (reg.name == "mdata" || reg.name == "sdata") {
+          if (reg.name == "mdata") {
+            mstatus := mstatus & "b00010011".U //Clear interrupts
             io.apb.PRDATA := i2cShift
-          } else {
+          }
+          if (reg.name == "sdata") {
+            sstatus := sstatus & "b00011111".U //Clear interrupts
+            io.apb.PRDATA := i2cShift
+           }
+          else {
             io.apb.PRDATA := reg.readCallback(addrDecode.io.addrOut)
           }
         }
@@ -318,7 +323,12 @@ class I2C(p: BaseParams) extends Module {
           rwBit := io.slave.sdaIn
           // If address matches, set AP=1 in sstatus, then do SENDACKSLAVE
           when(saddr === addrShift) {
-            sstatus := sstatus | (1.U(8.W) << 0.U) | (1.U(8.W) << 6.U)
+            sstatus := (sstatus | (1.U(8.W) << 0.U)) | (1.U(8.W) << 6.U) 
+            when (io.slave.sdaIn === 0.U){
+              sstatus := sstatus & ~(1.U << 1) 
+            }.otherwise {
+              sstatus := sstatus | (1.U << 1) 
+            }
             //io.slave.sclOut := 0.U
             stateReg := STATE_SENDACKSLAVE
           } .otherwise {
@@ -345,17 +355,15 @@ class I2C(p: BaseParams) extends Module {
             *  When a slave device responds to the address packet with an ACK, do the following:
             *  Set Write Interrupt Flag (WIF = 1)
             *  Clear Recieved Acknowledge (RXACK = 0)
-            *  Set Clock Hold (CLKHOLD = 1)
             *  Then, prepare to transmit data to slave via STATE_MASTERWRTE
             */
-            mstatus := (mstatus | (1.U(7.W) << 6) | (1.U(7.W) << 5)) & ~(1.U(7.W) << 4)
+            mstatus := (mstatus | (1.U(7.W) << 6)) & ~(1.U(7.W) << 4)
 
             when(shiftCounter === p.dataWidth.U) {
               sclReg := true.B
               shiftCounter := 0.U
               stateReg := STATE_SENDSTOP
             }.otherwise { 
-              //sclReg := false.B  // Hold SCL low
               stateReg     := STATE_MASTERWRITE
             }
           } .otherwise {  //Only enter once - after address packet transmission
@@ -363,11 +371,9 @@ class I2C(p: BaseParams) extends Module {
             *  Master Case 2: Address Packet Transmit Complete - Direction Bit Set to Read
             *  When a slave device responds to the address packet with an ACK, do the following:
             *  Clear Recieved Acknowledge (RXACK = 0)
-            *  Set Clock Hold (CLKHOLD = 1)
             *  Then, prepare to read data from slave via STATE_MASTERREAD
             */
-            mstatus := (mstatus & ~(1.U(7.W) << 4)) | (1.U(7.W) << 5)
-            //sclReg := false.B  // Hold SCL low
+            mstatus := (mstatus | (1.U(7.W) << 6)) & ~(1.U(7.W) << 4)
             i2cShift     := 0.U
             shiftCounter := 0.U
             stateReg     := STATE_MASTERREAD
@@ -397,8 +403,8 @@ class I2C(p: BaseParams) extends Module {
       when(~prevClk & io.slave.sclIn) {
         //prevSda := io.slave.sdaIn
         when(/*(prevSda === 1.U) && */(io.slave.sdaIn === 0.U)) {
+          sstatus := (sstatus | (1.U << 7.U)) & ~(1.U(7.W) << 4)
           when(shiftCounter === p.dataWidth.U) {
-            sstatus := sstatus | (1.U << 7.U)
             shiftCounter := 0.U
             detectStopConditionSlave()
             stateReg := STATE_WAITSTOP
@@ -407,6 +413,7 @@ class I2C(p: BaseParams) extends Module {
           }
         } .otherwise {
           // No ACK => assume NACK => go to WAITSTOP
+          sstatus := sstatus | (1.U(7.W) << 4)
           detectStopConditionSlave()
           stateReg := STATE_WAITSTOP
         }
@@ -421,10 +428,10 @@ class I2C(p: BaseParams) extends Module {
       frameCounter := 0.U
       when(sctrl(4) === 1.U) { // Hold SCL Low until SW user unasserts mctrl(5) meaning they are ready
         io.slave.sclOut := 0.U
+        sstatus := sstatus | (1.U(7.W) << 5)
         stateReg := STATE_SENDACKSLAVE
       }.otherwise {
         when(~prevClk & io.slave.sclIn) {
-          sstatus := sstatus & (~(1.U << 1)).asUInt //Clear 2nd bit
           sstatus := (sstatus | (1.U(7.W) << 7)) | (rwBit << 1)
           when(sctrl(1) === 0.U) {
             io.slave.sdaOut := 0.U
@@ -454,10 +461,11 @@ class I2C(p: BaseParams) extends Module {
       frameCounter := 0.U
       when(mctrl(4) === 1.U) { // Hold SCL Low until SW user unasserts mctrl(5) meaning they are ready
         io.master.sclOut := 0.U
+        mstatus := mstatus | (1.U(7.W) << 5)
         stateReg := STATE_SENDACKMASTER
       }.otherwise {
         when(~prevClk & io.master.sclOut) {
-          mstatus := mstatus | (1.U << 7.U) //Write master read complete interrupt to register
+          mstatus := mstatus | (1.U << 7.U) //Set master read complete interrupt to register
           when(mctrl(1) === 0.U) {
             io.master.sdaOut := 0.U
           }.otherwise {

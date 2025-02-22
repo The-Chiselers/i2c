@@ -1,6 +1,6 @@
 \section{Operating Modes}
 
-The I2C core supports multiple roles and modes. This section parallels the SPI documentation style but applies to I2C details.
+The I2C core supports multiple roles and modes.
 
 \subsection{Master Mode}
 In Master mode, the I2C core generates the SCL clock, issues Start/Stop conditions, and orchestrates bus communication.
@@ -19,10 +19,4 @@ In Slave mode, the I2C core monitors the bus for its own address, then responds 
     \item \textbf{Read/Write Handling:} The \texttt{DIR} bit (or equivalent) indicates whether the master is reading or writing to the slave.
     \item \textbf{Clock Stretching:} The slave can hold SCL low to delay the master if needed.
 \end{itemize}
-
-\subsection{Dual Mode}
-If supported, the core can simultaneously act as Master and Slave (on separate pins or time-sliced). This is useful in complex bus structures or bridging scenarios.
-
-\subsection{SMBus Quick Command}
-When \texttt{QCEN} is enabled, the master can send a single address + R/W bit as a "Quick Command" without data bytes, typically used for SMBus device toggles (on/off).
 

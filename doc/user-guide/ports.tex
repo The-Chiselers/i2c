@@ -43,12 +43,12 @@ by the following input parameters:
 sclIn & 
 1 & 
 Input &
-Input Clock Line to Master Interface. Master needs to read clock line for multi-master applications. \\ \hline
+Input Clock Line to Master and Slave Interface. Used to synchronize transactions, detect clock stretching and for Multi-Master scenarios. \\ \hline
 
 sclOut &
 1 &
 Output &
-Output Clock Line from Master Interface. Master needs to drive clock line for master-slave half-duplex communication. \\ \hline
+Output Clock Line from Master and Slave Interface. Used to drive transactions from the Master side and drive clock stretching. \\ \hline
 
 sdaIn &
 1 &
@@ -59,11 +59,6 @@ sdaOut &
 1 &
 Output &
 Output Data Line from Master and Slave Interface. Used by Master to write data to Slave. Used by Slave to write data to Master. \\ \hline
-
-scl & 
-1 & 
-Input & 
-Input Clock Line to Slave Interface. Slave needs to read clock line for master-slave half-duplex communication. \\ \hline
 
 \end{longtable}
 \captionsetup{aboveskip=0pt}
