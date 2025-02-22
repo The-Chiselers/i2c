@@ -51,12 +51,12 @@ object arbitrationTests {
   dut.clock.setTimeout(0)
 
   // --- Configure SLAVE registers ---
-  val sctrlaReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrla").get
+  val sctrlReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrl").get
   val saddrReg  = dut.getSlaveRegisterMap.getAddressOfRegister("saddr").get
   val sdataReg  = dut.getSlaveRegisterMap.getAddressOfRegister("sdata").get
 
   // Enable slave and set slave address
-  writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)     // enable slave
+  writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)     // enable slave
   writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)  // slave address = 0x50
 
   // --- Configure MASTER 1 and MASTER 2 registers concurrently ---
@@ -113,7 +113,7 @@ object arbitrationTests {
     while (edge < edgesToWait && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
       println(s"[DEBUG] Completed rising edge number $edge")
       edge += 1
-      if (edge == 16){
+      if (edge == 14){
           // --- Check arbitration results ---
         master1Status = readAPB(dut.io.masterApb1, mstatusReg1.U).toInt
         master2Status = readAPB(dut.io.masterApb2, mstatusReg2.U).toInt

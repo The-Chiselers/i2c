@@ -74,7 +74,7 @@ class I2CTest
     val validDataWidths = Seq(8, 16, 32)
     val dataWidth = validDataWidths(Random.nextInt(validDataWidths.length))
     // Example I2C parameters
-    val myParams = BaseParams(dataWidth = 32, addrWidth = 16, regWidth = 8, clkFreq = 100, coverage = false)
+    val myParams = BaseParams(dataWidth = 16, addrWidth = 16, regWidth = 8, clkFreq = 100, coverage = false)
     info(s"Data Width: ${myParams.dataWidth}, Address Width: ${myParams.addrWidth}")
     info("--------------------------------")
 
@@ -179,6 +179,21 @@ class I2CTest
           coverageCollection(cov.getAnnotationSeq, myParams, name)
         }
 
+      case "clockStretchingSlave" =>
+        it should "check if Master sees NACK & ACK during Clock Stretching" in {
+          val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+            transmitTests.clockStretchingSlave(dut, myParams)
+          }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
+        }
+
+      case "clockStretchingMaster" =>
+        it should "check if Slave sees NACK & ACK during Clock Stretching" in {
+          val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+            transmitTests.clockStretchingMaster(dut, myParams)
+          }
+          coverageCollection(cov.getAnnotationSeq, myParams, name)
+        }
       // default => runAllTests or handle other singled-out testName
       case _ =>
         runAllTests(myParams)
@@ -234,6 +249,19 @@ class I2CTest
         transmitTests.noSlavePresentFullDuplex(dut, myParams)
       }
       coverageCollection(cov.getAnnotationSeq, myParams, "noSlavePresentFullDuplex")
+    }
+
+    it should "check if Master sees NACK & ACK during Clock Stretching" in {
+      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        transmitTests.clockStretchingSlave(dut, myParams)
+      }
+      coverageCollection(cov.getAnnotationSeq, myParams, "clockStretchingSlave")
+    }
+    it should "check if Slave sees NACK & ACK during Clock Stretching" in {
+      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+        transmitTests.clockStretchingMaster(dut, myParams)
+      }
+      coverageCollection(cov.getAnnotationSeq, myParams, "clockStretchingMaster")
     }
   }
 

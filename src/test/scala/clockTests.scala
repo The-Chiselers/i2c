@@ -19,13 +19,13 @@ object clockTests {
     val expectedBaud = ((clockFreq / (2 * sclFreq)) - 5).toInt
     println(s"Calculated BAUD for 500 kHz: $expectedBaud")
     // --- Configure the Slave ---
-    val sctrlaReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrla").get
+    val sctrlReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrl").get
     val saddrReg  = dut.getSlaveRegisterMap.getAddressOfRegister("saddr").get
     val sdataReg  = dut.getSlaveRegisterMap.getAddressOfRegister("sdata").get
 
     // Put some known data into the slave's SDATA register (0x5A).
     val slaveData = 0xAB
-    writeAPB(dut.io.slaveApb, sctrlaReg.U, 1.U)        // enable the slave
+    writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)        // enable the slave
     writeAPB(dut.io.slaveApb, saddrReg.U, 0x50.U)      // slave address = 0x50
     writeAPB(dut.io.slaveApb, sdataReg.U, slaveData.U) // put 0x5A in SDATA
     // 1) Write the BAUD value
