@@ -26,7 +26,8 @@ class MasterInterface() extends Bundle {
 }
 
 class SlaveInterface() extends Bundle {
-  val scl     = Input(Bool())   // I2C clock input (slave mode)
+  val sclIn     = Input(Bool())   // I2C clock input (slave mode)
+  val sclOut    = Output(Bool())
   val sdaIn     = Input(UInt(1.W))   // I2C data input (slave mode)'
   val sdaOut    = Output(UInt(1.W))
 }

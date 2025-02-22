@@ -33,9 +33,9 @@ class MultiMasterI2C(p: BaseParams) extends Module {
 
   //val sclWire = Wire(Bool())
   //sclWire := master1.io.master.sclOut & master2.io.master.sclOut
-  slave.io.slave.scl := master1.io.master.sclOut & master2.io.master.sclOut
-  master1.io.master.sclIn := master1.io.master.sclOut & master2.io.master.sclOut
-  master2.io.master.sclIn := master1.io.master.sclOut & master2.io.master.sclOut
+  slave.io.slave.sclIn := master1.io.master.sclOut & master2.io.master.sclOut & slave.io.slave.sclOut
+  master1.io.master.sclIn := master1.io.master.sclOut & master2.io.master.sclOut & slave.io.slave.sclOut
+  master2.io.master.sclIn := master1.io.master.sclOut & master2.io.master.sclOut & slave.io.slave.sclOut
 
   // Model open-drain behavior for SDA
   //val sdaWire = Wire(Bool())
@@ -45,10 +45,10 @@ class MultiMasterI2C(p: BaseParams) extends Module {
   slave.io.slave.sdaIn := master1.io.master.sdaOut & master2.io.master.sdaOut & slave.io.slave.sdaOut
   
 
-  master1.io.slave.scl := 0.U
+  master1.io.slave.sclIn := 0.U
   slave.io.master.sdaIn := 0.U
   master1.io.slave.sdaIn := 0.U
-  master2.io.slave.scl := 0.U
+  master2.io.slave.sclIn := 0.U
   master2.io.slave.sdaIn := 0.U
   slave.io.master.sclIn := 0.U
 
