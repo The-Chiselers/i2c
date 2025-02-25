@@ -79,6 +79,7 @@
                     yosys
                     gtkwave
                     verilog
+                    z3
 
                     # LaTeX
                     texliveFull
@@ -157,6 +158,7 @@
                     yosys
                     gtkwave
                     verilog
+                    z3
 
                      # LaTeX
                     texliveFull

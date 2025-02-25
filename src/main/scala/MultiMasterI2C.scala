@@ -8,7 +8,7 @@ import tech.rocksavage.chiselware.addrdecode.{AddrDecode, AddrDecodeError, AddrD
 import tech.rocksavage.chiselware.addressable.RegisterMap
 
 class MultiMasterI2C(p: BaseParams, formal: Boolean = false) extends Module {
-  val io = IO(new Bundle {
+  var io = IO(new Bundle {
     val masterApb1 = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     val masterApb2 = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     val slaveApb  = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
@@ -17,6 +17,8 @@ class MultiMasterI2C(p: BaseParams, formal: Boolean = false) extends Module {
     val master2 = new MasterInterface
     val slave  = new SlaveInterface
   })
+
+
 
   val master1 = Module(new I2C(p, formal))
   val master2 = Module(new I2C(p, formal))

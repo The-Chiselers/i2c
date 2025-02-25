@@ -19,12 +19,24 @@ import tech.rocksavage.chiselware.addressable.RegisterMap
   *   - Then, if it sees STOP (SCL=1, SDA=1) in WAITSTOP, it sets APIF=1 (bit6) and AP=0.
   */
 class I2C(p: BaseParams, formal: Boolean = false) extends Module {
-  val io = IO(new Bundle {
+  var io = IO(new Bundle {
     val apb       = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     val master    = new MasterInterface
     val slave     = new SlaveInterface
     val interrupt = Output(Bool())
+    val state    = Output(UInt(4.W))
   })
+
+  // if (formal) {
+  //   io = IO(new Bundle {
+  //     val apb       = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
+  //     val master    = new MasterInterface
+  //     val slave     = new SlaveInterface
+  //     val interrupt = Output(Bool())
+  //     val state    = Output(UInt(4.W))
+  //   })
+  // }
+
   // ------------------------------------------------------------------------
   // 1) Register Map
   // ------------------------------------------------------------------------
@@ -620,6 +632,10 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
         }
       }
     }
+  }
+
+  if (formal) {
+    io.state := stateReg
   }
     
 
