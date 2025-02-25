@@ -14,6 +14,8 @@ import chisel3.util._
 import chiseltest._
 import chiseltest.coverage._
 import chiseltest.simulator.VerilatorCFlags
+import chiseltest.formal.BoundedCheck
+import chiseltest.RawTester.verify
 import firrtl2.AnnotationSeq
 import firrtl2.annotations.Annotation
 import firrtl2.options.TargetDirAnnotation
@@ -80,6 +82,20 @@ class I2CTest
 
     name match {
       // Basic clock test
+
+      case "formal_mm" =>
+        "MultiMasterI2C" should "Formally Verify" in
+          verify(
+            new MultiMasterI2C(myParams, true),
+            Seq(BoundedCheck(40)),
+          )
+      case "formal_fullduplex" =>
+        "FullDuplexI2C" should "Formally Verify" in
+          verify(
+            new FullDuplexI2C(myParams, true),
+            Seq(BoundedCheck(40)),
+          )
+
       case "masterClock" =>
         it should "generate the correct clock frequency for master mode" in {
           val cov = test(new FullDuplexI2C(myParams))

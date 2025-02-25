@@ -6,7 +6,7 @@ import tech.rocksavage.chiselware.apb.{ApbBundle, ApbParams}
 import tech.rocksavage.chiselware.addrdecode.{AddrDecode, AddrDecodeError, AddrDecodeParams}
 import tech.rocksavage.chiselware.addressable.RegisterMap
 
-class FullDuplexI2C(p: BaseParams) extends Module {
+class FullDuplexI2C(p: BaseParams, formal: Boolean = false) extends Module {
   val io = IO(new Bundle {
     val masterApb = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     val slaveApb  = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
@@ -15,8 +15,8 @@ class FullDuplexI2C(p: BaseParams) extends Module {
     val slave  = new SlaveInterface
   })
 
-  val master = Module(new I2C(p))
-  val slave  = Module(new I2C(p))
+  val master = Module(new I2C(p, formal))
+  val slave  = Module(new I2C(p, formal))
 
   master.io.apb <> io.masterApb
   slave.io.apb <> io.slaveApb
@@ -49,6 +49,10 @@ class FullDuplexI2C(p: BaseParams) extends Module {
 
   def getMasterRegisterMap = master.registerMap
   def getSlaveRegisterMap = slave.registerMap
+
+  if (formal) {
+    assert(!master.io.master.sclOut || !slave.io.slave.sclOut, "SCL is being driven by both masters")
+  }
 
 }
 

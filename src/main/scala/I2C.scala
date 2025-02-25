@@ -18,7 +18,7 @@ import tech.rocksavage.chiselware.addressable.RegisterMap
   *   - Slave sets AP=1 (bit0 of sstatus) when a valid address is recognized.
   *   - Then, if it sees STOP (SCL=1, SDA=1) in WAITSTOP, it sets APIF=1 (bit6) and AP=0.
   */
-class I2C(p: BaseParams) extends Module {
+class I2C(p: BaseParams, formal: Boolean = false) extends Module {
   val io = IO(new Bundle {
     val apb       = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     val master    = new MasterInterface
@@ -721,6 +721,13 @@ class I2C(p: BaseParams) extends Module {
       }
     }
     stopDetected //Return
+  }
+
+  if (formal) {
+    // Formal verification
+    // 1) Master FSM
+
+  
   }
 
 }

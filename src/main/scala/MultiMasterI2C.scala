@@ -7,7 +7,7 @@ import tech.rocksavage.chiselware.apb.{ApbBundle, ApbParams}
 import tech.rocksavage.chiselware.addrdecode.{AddrDecode, AddrDecodeError, AddrDecodeParams}
 import tech.rocksavage.chiselware.addressable.RegisterMap
 
-class MultiMasterI2C(p: BaseParams) extends Module {
+class MultiMasterI2C(p: BaseParams, formal: Boolean = false) extends Module {
   val io = IO(new Bundle {
     val masterApb1 = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     val masterApb2 = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
@@ -18,9 +18,9 @@ class MultiMasterI2C(p: BaseParams) extends Module {
     val slave  = new SlaveInterface
   })
 
-  val master1 = Module(new I2C(p))
-  val master2 = Module(new I2C(p))
-  val slave  = Module(new I2C(p))
+  val master1 = Module(new I2C(p, formal))
+  val master2 = Module(new I2C(p, formal))
+  val slave  = Module(new I2C(p, formal))
 
   master1.io.apb <> io.masterApb1
   master2.io.apb <> io.masterApb2
@@ -59,6 +59,11 @@ class MultiMasterI2C(p: BaseParams) extends Module {
   def getMasterRegisterMap1 = master1.registerMap
   def getMasterRegisterMap2 = master2.registerMap
   def getSlaveRegisterMap = slave.registerMap
+
+  if (formal) {
+    // no two masters should be transmit state at the same time
+  
+  }
 
 }
   
