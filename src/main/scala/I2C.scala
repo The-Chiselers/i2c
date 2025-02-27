@@ -2,6 +2,7 @@
 package tech.rocksavage.chiselware.I2C
 import chisel3._
 import chisel3.util._
+import tech.rocksavage.test.TestUtils.coverAll
 import tech.rocksavage.chiselware.apb.{ApbBundle, ApbParams}
 import tech.rocksavage.chiselware.addrdecode.{AddrDecode, AddrDecodeError, AddrDecodeParams}
 import tech.rocksavage.chiselware.addressable.RegisterMap
@@ -23,8 +24,8 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
     val apb       = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     val master    = new MasterInterface
     val slave     = new SlaveInterface
-    val interrupt = Output(Bool())
-    val state    = Output(UInt(4.W))
+    //val interrupt = Output(Bool())
+    //val state    = Output(UInt(4.W))
   })
 
   // if (formal) {
@@ -246,7 +247,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
   val busStateReg = RegInit(BusState.IDLE)
 
   // Default outputs for SDA lines
-  io.interrupt     := false.B
+  //io.interrupt     := false.B
   io.master.sdaOut := true.B
   io.slave.sdaOut  := true.B
   io.slave.sclOut  := true.B
@@ -588,6 +589,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
       ssFlags := ssFlags | (1.U << 3.U)
       when(ssFlags(3)) {
         io.master.sdaOut := 1.U
+        maddr := 0.U
         stateReg := STATE_IDLE
       }
     }
@@ -599,6 +601,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
       when(detectStopConditionSlave()){
         addrShift := 0.U
         sstatus := (sstatus & ~(1.U(8.W) << 0.U)) | (1.U(8.W) << 6.U)
+        saddr := 0.U
         stateReg := STATE_IDLE
       }
     }
@@ -634,9 +637,9 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
     }
   }
 
-  if (formal) {
-    io.state := stateReg
-  }
+  // if (formal) {
+  //   io.state := stateReg
+  // }
     
 
   // ------------------------------------------------------------------------
@@ -744,6 +747,11 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
     // 1) Master FSM
 
   
+  }
+    // Collect code coverage points
+  if (p.coverage) {
+      // Cover the entire IO bundle recursively.
+      coverAll(io, "_io")
   }
 
 }

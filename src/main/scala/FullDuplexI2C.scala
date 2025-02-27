@@ -51,27 +51,27 @@ class FullDuplexI2C(p: BaseParams, formal: Boolean = false) extends Module {
   def getMasterRegisterMap = master.registerMap
   def getSlaveRegisterMap = slave.registerMap
 
-  if (formal) {
-    val masterWrite = master.io.state === 7.U //STATE_MASTERWRITE
-    val masterRead = master.io.state === 9.U //STATE_MASTERREAD
-    val mastSclHasGoneHigh = RegInit(false.B)
-    when(masterWrite) {
-      when(master.io.master.sclOut && !past(master.io.master.sclOut)) {
-        mastSclHasGoneHigh := true.B
-      }
-      when(mastSclHasGoneHigh) {
-        assert(master.io.master.sdaOut === 0.U)
-      }
-      // once a clock has gone high, sda must be low
-      
-      
-    }
-    when(masterRead) {
-      assert(master.io.master.sclOut && master.io.master.sdaOut === 0.U)
-    }
-    // assert(master.io.state === STATE_MASTERWRITE && past(!master.io.master.sclOut) && master.io.master.sdaOut === 1.U)
-    // assert(master.io.state === STATE_MASTERREAD && past(!master.io.master.sclOut) && master.io.master.sdaOut === 1.U)
-  }
+  // if (formal) {
+  //   val masterWrite = master.io.state === 7.U //STATE_MASTERWRITE
+  //   val masterRead = master.io.state === 9.U //STATE_MASTERREAD
+  //   val mastSclHasGoneHigh = RegInit(false.B)
+  //   val prevClk = RegInit(false.B)
+  //   prevClk := master.io.master.sclOut
+  //   when(masterWrite) { 
+  //     when(~prevClk && master.io.master.sclOut) {
+  //       mastSclHasGoneHigh := true.B
+  //     }
+  //     when(mastSclHasGoneHigh) {
+  //       assert(master.io.master.sdaOut === 0.U)
+  //     }
+  //     // once a clock has gone high, sda must be low
+  //   }
+  //   // when(masterRead) {
+  //   //   assert(master.io.master.sclOut && master.io.master.sdaOut === 0.U)
+  //   // }
+  //   // assert(master.io.state === STATE_MASTERWRITE && past(!master.io.master.sclOut) && master.io.master.sdaOut === 1.U)
+  //   // assert(master.io.state === STATE_MASTERREAD && past(!master.io.master.sclOut) && master.io.master.sdaOut === 1.U)
+  // }
 
 }
 

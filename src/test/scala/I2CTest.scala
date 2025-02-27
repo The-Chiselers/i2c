@@ -20,8 +20,7 @@ import firrtl2.AnnotationSeq
 import firrtl2.annotations.Annotation
 import firrtl2.options.TargetDirAnnotation
 
-import TestUtils.checkCoverage
-import TestUtils.randData
+import tech.rocksavage.test._
 
 class I2CTest
     extends AnyFlatSpec
@@ -76,9 +75,12 @@ class I2CTest
     val validDataWidths = Seq(8, 16, 32)
     val dataWidth = validDataWidths(Random.nextInt(validDataWidths.length))
     // Example I2C parameters
-    val myParams = BaseParams(dataWidth, addrWidth = 16, regWidth = 8, clkFreq = 100, coverage = false)
+    val myParams = BaseParams(dataWidth, addrWidth = 16, regWidth = 8, clkFreq = 100, coverage = true)
     info(s"Data Width: ${myParams.dataWidth}, Address Width: ${myParams.addrWidth}")
     info("--------------------------------")
+    val covDir   = "./out/cov"
+    val coverage = true
+    val configName = dataWidth + "_" + "_16" + "_8"
 
     name match {
       // Basic clock test
@@ -98,257 +100,430 @@ class I2CTest
 
       case "masterClock" =>
         it should "generate the correct clock frequency for master mode" in {
-          val cov = test(new FullDuplexI2C(myParams))
+          val cov = test(new FullDuplexI2C((myParams)))
             .withAnnotations(backendAnnotations) { dut =>
               clockTests.masterClock(dut, myParams)
             }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
-        }
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )        }
 
       case "dividerBasic" =>
         it should "verify the Divider-based I2C clock generation in a simple scenario" in {
-          val cov = test(new FullDuplexI2C(myParams))
+          val cov = test(new FullDuplexI2C((myParams)))
             .withAnnotations(backendAnnotations) { dut =>
               clockTests.dividerBasicCheck(dut, myParams)
             }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
-        }
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )        
+          }
 
       case "dividerRandom" =>
         it should "verify random BAUD values do produce toggles" in {
-          val cov = test(new FullDuplexI2C(myParams))
+          val cov = test(new FullDuplexI2C((myParams)))
             .withAnnotations(backendAnnotations) { dut =>
               clockTests.dividerRandomCheck(dut, myParams)
             }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
         }
 
       case "clockTests" =>
-        clockTestFull(myParams)
+        clockTestFull(myParams, configName, covDir, coverage)
 
       // Arbitration from "arbitrationTests.scala"
       case "arbitrationLost" =>
         it should "handle multi-master arbitration lost" in {
-          val cov = test(new MultiMasterI2C(myParams))
+          val cov = test(new MultiMasterI2C((myParams)))
             .withAnnotations(backendAnnotations) { dut =>
               arbitrationTests.multiMasterWriteSlaveRead(dut, myParams)
             }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
         }
 
       // Repeated starts from "repeatedStartTests.scala"
       case "repeatedStart" =>
         it should "perform repeated start without stop" in {
-          val cov = test(new I2C(myParams))
+          val cov = test(new I2C((myParams)))
             .withAnnotations(backendAnnotations) { dut =>
               repeatedStartTests.masterRepeatedStartTest(dut, myParams)
             }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
         }
 
       // For full-duplex test, use the master portion of the FullDuplexI2C.
       case "masterSlaveTransmission" =>
         it should "transmit data between master and slave" in {
-          val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+          val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
             transmitTests.masterSlaveTransmission(dut, myParams)  
           }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
         }
 
       case "masterWriteSlaveReadFullDuplex" =>
         it should "perform Master Write->Slave Read in FullDuplexI2C" in {
-          val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+          val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
             transmitTests.masterWriteSlaveReadFullDuplex(dut, myParams)
           }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
         }
 
       case "bidirectionalHalfDuplex" =>
         it should "perform bidirectional half-duplex communication" in {
-          val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+          val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
             transmitTests.bidirectionalHalfDuplex(dut, myParams)
           }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
         }
+
+      case "bidirectionalHalfDuplexTwice" =>
+        it should "perform bidirectional half-duplex communication twice" in {
+          val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
+            transmitTests.bidirectionalHalfDuplexTwice(dut, myParams)
+          }
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
+        }     
 
       case "ackVsNackFullDuplex" =>
         it should "check scenario for ack vs. NACK in FullDuplexI2C" in {
-          val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+          val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
             transmitTests.ackVsNackFullDuplex(dut, myParams)
           }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
         }
 
       case "stopConditionFullDuplex" =>
         it should "verify Stop condition logic from Master->Slave in FullDuplexI2C" in {
-          val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+          val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
             transmitTests.stopConditionFullDuplex(dut, myParams)
           }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
         }
 
       case "noSlavePresentFullDuplex" =>
         it should "check Master sees NACK if no slave present in FullDuplexI2C" in {
-          val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+          val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
             transmitTests.noSlavePresentFullDuplex(dut, myParams)
           }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
         }
 
       case "clockStretchingSlave" =>
         it should "check if Master sees NACK & ACK during Clock Stretching" in {
-          val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+          val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
             transmitTests.clockStretchingSlave(dut, myParams)
           }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
         }
 
       case "clockStretchingMaster" =>
         it should "check if Slave sees NACK & ACK during Clock Stretching" in {
-          val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+          val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
             transmitTests.clockStretchingMaster(dut, myParams)
           }
-          coverageCollection(cov.getAnnotationSeq, myParams, name)
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
         }
       // default => runAllTests or handle other singled-out testName
       case _ =>
-        runAllTests(myParams)
+        runAllTests(myParams, configName, covDir, coverage)
+    }
+    
+    it should "generate cumulative coverage report" in {
+      coverageCollector.saveCumulativeCoverage(coverage, covDir)
     }
   }
 
   /** A convenience method to run all major tests. */
-  def runAllTests(myParams: BaseParams): Unit = {
-    clockTestFull(myParams)
-    advancedTestsFull(myParams)
-    fullDuplexTestsFull(myParams)
+  def runAllTests(myParams: BaseParams, 
+  configName: String,
+  covDir: String,
+  coverage: Boolean
+  ): Unit = {
+    clockTestFull(myParams, configName, covDir, coverage)
+    advancedTestsFull(myParams, configName, covDir, coverage)
+    fullDuplexTestsFull(myParams, configName, covDir, coverage)
   }
 
   // A new group for "FullDuplexI2C" tests:
-  def fullDuplexTestsFull(myParams: BaseParams): Unit = {
+  def fullDuplexTestsFull(myParams: BaseParams,
+  configName: String,
+  covDir: String,
+  coverage: Boolean): Unit = {
     it should "transmit data (Master Read->Slave Write) between master and slave" in {
-      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         transmitTests.masterSlaveTransmission(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "masterSlaveTransmission")
-    }
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "masterSlaveTransmission",
+        configName,
+        coverage,
+        covDir
+      )    }
 
     it should "perform Master Write->Slave Read in FullDuplexI2C" in {
-      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         transmitTests.masterWriteSlaveReadFullDuplex(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "masterWriteSlaveReadFullDuplex")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "masterWritesSlaveReadFullDuplex",
+        configName,
+        coverage,
+        covDir
+      )
     }
 
     it should "perform bidirectional half-duplex communication" in {
-      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         transmitTests.bidirectionalHalfDuplex(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "bidirectionalHalfDuplex")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "bidirectionalHalfDuplex",
+        configName,
+        coverage,
+        covDir
+      )
+    }
+
+    it should "perform bidirectional half-duplex communication twice" in {
+          val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
+            transmitTests.bidirectionalHalfDuplexTwice(dut, myParams)
+          }
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "bidirectionalHalfDuplexTwice",
+        configName,
+        coverage,
+        covDir
+      )        
     }
 
     it should "check scenario for ack vs. NACK in FullDuplexI2C" in {
-      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         transmitTests.ackVsNackFullDuplex(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "ackVsNackFullDuplex")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "ackVsNackFullDuplex",
+        configName,
+        coverage,
+        covDir
+      )    
     }
 
     it should "verify Stop condition logic from Master->Slave in FullDuplexI2C" in {
-      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         transmitTests.stopConditionFullDuplex(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "stopConditionFullDuplex")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "stopConditionFullDuplex",
+        configName,
+        coverage,
+        covDir
+      )    
     }
 
     it should "check Master sees NACK if no slave present in FullDuplexI2C" in {
-      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         transmitTests.noSlavePresentFullDuplex(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "noSlavePresentFullDuplex")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "noSlavePresentFullDuplex",
+        configName,
+        coverage,
+        covDir
+      )  
     }
 
     it should "check if Master sees NACK & ACK during Clock Stretching" in {
-      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         transmitTests.clockStretchingSlave(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "clockStretchingSlave")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "clockStretchingSlave",
+        configName,
+        coverage,
+        covDir
+      )      
     }
     it should "check if Slave sees NACK & ACK during Clock Stretching" in {
-      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         transmitTests.clockStretchingMaster(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "clockStretchingMaster")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "clockStretchingMaster",
+        configName,
+        coverage,
+        covDir
+      )      
+    
     }
   }
 
   /** Basic clock tests. */
-  def clockTestFull(myParams: BaseParams): Unit = {
+  def clockTestFull(myParams: BaseParams,
+  configName: String,
+  covDir: String,
+  coverage: Boolean
+  ): Unit = {
     it should "generate the correct clock frequency for master mode" in {
-      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         clockTests.masterClock(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "masterClock")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "masterClock",
+        configName,
+        coverage,
+        covDir
+      )      
     }
 
     it should "verify the Divider-based I2C clock generation in a simple scenario" in {
-      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         clockTests.dividerBasicCheck(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "dividerBasic")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "dividerBasic",
+        configName,
+        coverage,
+        covDir
+      )      
     }
 
 
     it should "verify random BAUD values do produce toggles" in {
-      val cov = test(new FullDuplexI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new FullDuplexI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         clockTests.dividerRandomCheck(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "dividerRandom")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "dividerRandom",
+        configName,
+        coverage,
+        covDir
+      )      
     }
   }
 
 
   /** Advanced tests: arbitration, repeated starts, bus errors, collisions, stops. */
-  def advancedTestsFull(myParams: BaseParams): Unit = {
+  def advancedTestsFull(myParams: BaseParams,
+  configName: String,
+  covDir: String,
+  coverage: Boolean
+  ): Unit = {
     it should "handle multi-master arbitration lost" in {
-      val cov = test(new MultiMasterI2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new MultiMasterI2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         arbitrationTests.multiMasterWriteSlaveRead(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "arbitrationLost")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "arbitrationLost",
+        configName,
+        coverage,
+        covDir
+      )      
     }
 
     it should "perform repeated start without stop" in {
-      val cov = test(new I2C(myParams)).withAnnotations(backendAnnotations) { dut =>
+      val cov = test(new I2C((myParams))).withAnnotations(backendAnnotations) { dut =>
         repeatedStartTests.masterRepeatedStartTest(dut, myParams)
       }
-      coverageCollection(cov.getAnnotationSeq, myParams, "repeatedStart")
-    }
-  }
-
-
-  // ------------------------------------------------
-  // Coverage collection helper.
-  // ------------------------------------------------
-  def coverageCollection(
-      cov: Seq[Annotation],
-      myParams: BaseParams,
-      testName: String
-  ): Unit = {
-    if (myParams.coverage) {
-      val coverage = cov.collectFirst { case a: TestCoverage => a.counts }.get.toMap
-      val testConfig = myParams.addrWidth.toString + "_" + myParams.dataWidth.toString
-      val buildRoot = sys.env.get("BUILD_ROOT")
-      if (buildRoot.isEmpty) {
-        println("BUILD_ROOT not set, please set and run again")
-        System.exit(1)
-      }
-      val scalaCoverageDir = new File(buildRoot.get + "/cov/scala")
-      val verCoverageDir   = new File(buildRoot.get + "/cov/verilog")
-      verCoverageDir.mkdirs()
-      val coverageFile = verCoverageDir.toString + "/" + testName + "_" + testConfig + ".cov"
-      val stuckAtFault = checkCoverage(coverage, coverageFile)
-      if (stuckAtFault)
-        println(s"WARNING: At least one IO port did not toggle -- see $coverageFile")
-      info(s"Verilog Coverage report written to $coverageFile")
+    coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "repeatedStart",
+        configName,
+        coverage,
+        covDir
+      )      
     }
   }
 }
