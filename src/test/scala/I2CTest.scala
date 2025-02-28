@@ -75,7 +75,7 @@ class I2CTest
     val validDataWidths = Seq(8, 16, 32)
     val dataWidth = validDataWidths(Random.nextInt(validDataWidths.length))
     // Example I2C parameters
-    val myParams = BaseParams(dataWidth, addrWidth = 16, regWidth = 8, clkFreq = 100, coverage = true)
+    val myParams = BaseParams(dataWidth, addrWidth = 16, regWidth = 8, clkFreq = 50, coverage = true)
     info(s"Data Width: ${myParams.dataWidth}, Address Width: ${myParams.addrWidth}")
     info("--------------------------------")
     val covDir   = "./out/cov"

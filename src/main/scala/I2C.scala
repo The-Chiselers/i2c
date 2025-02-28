@@ -24,7 +24,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
     val apb       = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     val master    = new MasterInterface
     val slave     = new SlaveInterface
-    //val interrupt = Output(Bool())
+    val interrupt = Output(Bool())
     //val state    = Output(UInt(4.W))
   })
 
@@ -247,7 +247,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
   val busStateReg = RegInit(BusState.IDLE)
 
   // Default outputs for SDA lines
-  //io.interrupt     := false.B
+  io.interrupt     := false.B
   io.master.sdaOut := true.B
   io.slave.sdaOut  := true.B
   io.slave.sclOut  := true.B
@@ -590,6 +590,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
       when(ssFlags(3)) {
         io.master.sdaOut := 1.U
         maddr := 0.U
+        io.interrupt := true.B
         stateReg := STATE_IDLE
       }
     }
@@ -602,6 +603,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
         addrShift := 0.U
         sstatus := (sstatus & ~(1.U(8.W) << 0.U)) | (1.U(8.W) << 6.U)
         saddr := 0.U
+        io.interrupt := true.B
         stateReg := STATE_IDLE
       }
     }

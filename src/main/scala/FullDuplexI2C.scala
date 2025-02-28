@@ -11,13 +11,14 @@ class FullDuplexI2C(p: BaseParams, formal: Boolean = false) extends Module {
   val io = IO(new Bundle {
     val masterApb = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     val slaveApb  = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
-    
     val master = new MasterInterface
     val slave  = new SlaveInterface
+    val interrupt = Output(Bool())
   })
 
   val master = Module(new I2C(p, formal))
   val slave  = Module(new I2C(p, formal))
+  io.interrupt := master.io.interrupt | slave.io.interrupt
 
   master.io.apb <> io.masterApb
   slave.io.apb <> io.slaveApb

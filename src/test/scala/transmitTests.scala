@@ -595,171 +595,204 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
       f"Phase 2 failed: Slave received 0x$masterReceived2%02X, expected 0x$slaveData2%02X")
   }
 
+
   def bidirectionalHalfDuplexTwice(dut: FullDuplexI2C, params: BaseParams): Unit = {
-  implicit val clk: Clock = dut.clock
-  dut.clock.setTimeout(0)
-
-  // ---------------------------
-  // PHASE 1: Master Write → Slave Read
-  // ---------------------------
-  // Configure the slave registers for receiving:
-  val sctrlReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrl").get
-  val saddrReg  = dut.getSlaveRegisterMap.getAddressOfRegister("saddr").get
-  val sdataReg  = dut.getSlaveRegisterMap.getAddressOfRegister("sdata").get
-  
-  val slaveAddr = BigInt(7, Random)
-
-  // Enable the slave and set its address to 0x50.
-  writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)
-  writeAPB(dut.io.slaveApb, saddrReg.U, slaveAddr.U)
-
-  // Configure the master for a write transaction:
-  // (The transmitted address should be 0x50 with R/W=0 → 0xA0)
-  val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
-  val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
-  val mctrlReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrl").get
-  val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
-
-  val maddrW = (slaveAddr << 1) & 0xFF 
-  val masterData1 = BigInt(params.dataWidth, Random)
-  // Write the address (0xA0) and then start the master.
-  writeAPB(dut.io.masterApb, maddrReg.U, maddrW.U)
-  writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
-  writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
-  // Let the transaction begin; wait a short time.
-  dut.clock.step(100)
-  // Write the data to be transmitted.
-  writeAPB(dut.io.masterApb, mdataReg.U, masterData1.U)
-  dut.clock.step(1)
-  
-  // Wait for enough rising edges for the transaction to complete.
-  val edgesToWait1 = 60
-    var edge = 0
-    while (edge < edgesToWait1 && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
-      println(s"[DEBUG] Completed rising edge number $edge")
-      edge += 1
+    implicit val clk: Clock = dut.clock
+    dut.clock.setTimeout(0)
+    // ---------------------------
+    // PHASE 1: Master Write → Slave Read
+    // ---------------------------
+    // Configure the slave registers for receiving:
+    val sctrlReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrl").get
+    val saddrReg  = dut.getSlaveRegisterMap.getAddressOfRegister("saddr").get
+    val sdataReg  = dut.getSlaveRegisterMap.getAddressOfRegister("sdata").get
+    
+    val slaveAddr = BigInt(7, Random)
+    // Enable the slave and set its address to 0x50.
+    writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)
+    writeAPB(dut.io.slaveApb, saddrReg.U, slaveAddr.U)
+    // Configure the master for a write transaction:
+    // (The transmitted address should be 0x50 with R/W=0 → 0xA0)
+    val maddrReg  = dut.getMasterRegisterMap.getAddressOfRegister("maddr").get
+    val mbaudReg  = dut.getMasterRegisterMap.getAddressOfRegister("mbaud").get
+    val mctrlReg = dut.getMasterRegisterMap.getAddressOfRegister("mctrl").get
+    val mdataReg  = dut.getMasterRegisterMap.getAddressOfRegister("mdata").get
+    val maddrW = (slaveAddr << 1) & 0xFF 
+    val masterData1 = BigInt(params.dataWidth, Random)
+    // Write the address (0xA0) and then start the master.
+    writeAPB(dut.io.masterApb, maddrReg.U, maddrW.U)
+    writeAPB(dut.io.masterApb, mbaudReg.U, 16.U)
+    writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
+    // Let the transaction begin; wait a short time.
+    dut.clock.step(100)
+    // Write the data to be transmitted.
+    writeAPB(dut.io.masterApb, mdataReg.U, masterData1.U)
+    dut.clock.step(1)
+    
+    // Wait for enough rising edges for the transaction to complete.
+    var count = 0
+    while (!dut.io.interrupt.peek().litToBoolean && count < 10000) {
+      dut.clock.step(1)
+      count += 1
     }
 
-  
-  // Read the slave's data register
-  val slaveReceived = readAPB(dut.io.slaveApb, sdataReg.U).toInt
-  println(s"[DEBUG] Phase 1: Slave received = 0x${slaveReceived.toHexString}, expected = 0x${masterData1.toString}")
-  assert(slaveReceived == masterData1.toInt,
-    f"Phase 1 failed: Slave received 0x$slaveReceived%02X, expected 0x$masterData1%02X")
-
-  // ---------------------------
-  // PHASE 2: Master Write → Slave Read (2)
-  // ---------------------------
-  val slaveAddr2 = BigInt(7, Random)
-  writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)
-  writeAPB(dut.io.slaveApb, saddrReg.U, slaveAddr2.U)
-
-  val maddrW2 = (slaveAddr2 << 1) & 0xFF 
-  val masterData2 = BigInt(params.dataWidth, Random)
-  // Write the address (0xA0) and then start the master.
-  writeAPB(dut.io.masterApb, maddrReg.U, maddrW2.U)
-  writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
-  writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
-  // Let the transaction begin; wait a short time.
-  dut.clock.step(100)
-  // Write the data to be transmitted.
-  writeAPB(dut.io.masterApb, mdataReg.U, masterData2.U)
-  dut.clock.step(1)
-  
-  // Wait for enough rising edges for the transaction to complete.
-  val edgesToWait2 = 60
-    var edge2 = 0
-    while (edge2 < edgesToWait2 && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
-      println(s"[DEBUG] Completed rising edge number $edge")
-      edge += 1
+    // Add assertion after loop
+    assert(count < 10000, "Timeout: Interrupt did not trigger within 1000 cycles")
+    
+    // Read the slave's data register
+    val slaveReceived = readAPB(dut.io.slaveApb, sdataReg.U).toInt
+    println(s"[DEBUG] Phase 1: Slave received = 0x${slaveReceived.toHexString}, expected = 0x${masterData1.toString}")
+    assert(slaveReceived == masterData1.toInt,
+      f"Phase 1 failed: Slave received 0x$slaveReceived%02X, expected 0x$masterData1%02X")
+    // ---------------------------
+    // PHASE 2: Master Write → Slave Read (2)
+    // ---------------------------
+    val slaveAddr2 = BigInt(7, Random)
+    writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)
+    writeAPB(dut.io.slaveApb, saddrReg.U, slaveAddr2.U)
+    val maddrW2 = (slaveAddr2 << 1) & 0xFF 
+    val masterData2 = BigInt(params.dataWidth, Random)
+    // Write the address (0xA0) and then start the master.
+    writeAPB(dut.io.masterApb, maddrReg.U, maddrW2.U)
+    writeAPB(dut.io.masterApb, mbaudReg.U, 32.U)
+    writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
+    // Let the transaction begin; wait a short time.
+    dut.clock.step(100)
+    // Write the data to be transmitted.
+    writeAPB(dut.io.masterApb, mdataReg.U, masterData2.U)
+    dut.clock.step(1)
+    
+    // Wait for enough rising edges for the transaction to complete.
+    count = 0
+    while (!dut.io.interrupt.peek().litToBoolean && count < 10000) {
+      dut.clock.step(1)
+      count += 1
     }
 
-  
-  // Read the slave's data register
-  val slaveReceived2 = readAPB(dut.io.slaveApb, sdataReg.U).toInt
-  println(s"[DEBUG] Phase 1: Slave received = 0x${slaveReceived2.toHexString}, expected = 0x${masterData2.toString}")
-  assert(slaveReceived2 == masterData2.toInt,
-    f"Phase 2 failed: Slave received 0x$slaveReceived2%02X, expected 0x$masterData2%02X")
+    // Add assertion after loop
+    assert(count < 10000, "Timeout: Interrupt did not trigger within 1000 cycles")
 
-
-  // ---------------------------
-  // PHASE 3: Slave Write → Master Read
-  // ---------------------------
-  // Reconfigure the slave for transmitting:
-  // (Keep the same slave address, but now preload its sdata register with new data)
-  val slaveData3 = BigInt(params.dataWidth, Random)
-  val slaveAddr3 = BigInt(7, Random)
-
-  writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)         // ensure slave is enabled
-  writeAPB(dut.io.slaveApb, saddrReg.U, slaveAddr3.U)         // same slave address
-  writeAPB(dut.io.slaveApb, sdataReg.U, slaveData3.U)   // preload slave data for transmission
-  
-  var maddrR = (slaveAddr3 << 1) & 0xFF
-  maddrR = maddrR | 0x01
-  // Reconfigure the master for a read transaction:
-  // For a read, the address should be (0x50 with R/W=1) → 0xA1.
-  writeAPB(dut.io.masterApb, maddrReg.U, maddrR.U)
-  // Clear master's mdata (dummy initial value)
-  writeAPB(dut.io.masterApb, mdataReg.U, 0x00.U)
-  // Ensure BAUD is still 2.
-  writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
-  // Start the master for the read transaction.
-  writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
-  
-  // Wait for the read transaction to complete by waiting for rising edges.
-  val edgesToWait3 = 60
-  var edge3 = 0
-  while (edge3 < edgesToWait3 && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
-    println(s"[DEBUG] Completed rising edge number $edge")
-    edge2 += 1
-  }
-
-  
-  // Read the master's data register
-  val masterReceived = readAPB(dut.io.masterApb, mdataReg.U).toInt
-  println(s"[DEBUG] Phase 2: Master received = 0x${masterReceived.toHexString}, expected = 0x${slaveData3.toString}")
-  assert(masterReceived == slaveData3.toInt,
-    f"Phase 2 failed: Master received 0x$masterReceived%02X, expected 0x$slaveData3%02X")
-
+    // Read the slave's data register
+    val slaveReceived2 = readAPB(dut.io.slaveApb, sdataReg.U).toInt
+    println(s"[DEBUG] Phase 2: Slave received = 0x${slaveReceived2.toHexString}, expected = 0x${masterData2.toString}")
+    assert(slaveReceived2 == masterData2.toInt,
+      f"Phase 2 failed: Slave received 0x$slaveReceived2%02X, expected 0x$masterData2%02X")
 
     // ---------------------------
-  // PHASE 4: Slave Write → Master Read
-  // ---------------------------
-  // Reconfigure the slave for transmitting:
-  // (Keep the same slave address, but now preload its sdata register with new data)
-  val slaveData4 = BigInt(params.dataWidth, Random)
-  val slaveAddr4 = BigInt(7, Random)
+    // PHASE 3: Slave Write → Master Read
+    // ---------------------------
+    // Reconfigure the slave for transmitting:
+    // (Keep the same slave address, but now preload its sdata register with new data)
+    val slaveData3 = BigInt(params.dataWidth, Random)
+    val slaveAddr3 = BigInt(7, Random)
+    writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)         // ensure slave is enabled
+    writeAPB(dut.io.slaveApb, saddrReg.U, slaveAddr3.U)         // same slave address
+    writeAPB(dut.io.slaveApb, sdataReg.U, slaveData3.U)   // preload slave data for transmission
+    
+    var maddrR = (slaveAddr3 << 1) & 0xFF
+    maddrR = maddrR | 0x01
+    // Reconfigure the master for a read transaction:
+    // For a read, the address should be (0x50 with R/W=1) → 0xA1.
+    writeAPB(dut.io.masterApb, maddrReg.U, maddrR.U)
+    // Clear master's mdata (dummy initial value)
+    writeAPB(dut.io.masterApb, mdataReg.U, 0x00.U)
+    // Ensure BAUD is still 2.
+    writeAPB(dut.io.masterApb, mbaudReg.U, 64.U)
+    // Start the master for the read transaction.
+    writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
+    
+    // Wait for the read transaction to complete by waiting for rising edges.
+    count = 0
+    while (!dut.io.interrupt.peek().litToBoolean && count < 10000) {
+      dut.clock.step(1)
+      count += 1
+    }
 
-  writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)         // ensure slave is enabled
-  writeAPB(dut.io.slaveApb, saddrReg.U, slaveAddr4.U)         // same slave address
-  writeAPB(dut.io.slaveApb, sdataReg.U, slaveData4.U)   // preload slave data for transmission
-  
-  var maddrR2 = (slaveAddr4 << 1) & 0xFF
-  maddrR2 = maddrR2 | 0x01
-  // Reconfigure the master for a read transaction:
-  // For a read, the address should be (0x50 with R/W=1) → 0xA1.
-  writeAPB(dut.io.masterApb, maddrReg.U, maddrR2.U)
-  // Clear master's mdata (dummy initial value)
-  writeAPB(dut.io.masterApb, mdataReg.U, 0x00.U)
-  // Ensure BAUD is still 2.
-  writeAPB(dut.io.masterApb, mbaudReg.U, 2.U)
-  // Start the master for the read transaction.
-  writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
-  
-  // Wait for the read transaction to complete by waiting for rising edges.
-  val edgesToWait4 = 60
-  var edge4 = 0
-  while (edge4 < edgesToWait4 && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
-    println(s"[DEBUG] Completed rising edge number $edge")
-    edge2 += 1
+    // Add assertion after loop
+    assert(count < 10000, "Timeout: Interrupt did not trigger within 1000 cycles")
+    
+    // Read the master's data register
+    val masterReceived = readAPB(dut.io.masterApb, mdataReg.U).toInt
+    println(s"[DEBUG] Phase 3: Master received = 0x${masterReceived.toHexString}, expected = 0x${slaveData3.toString}")
+    assert(masterReceived == slaveData3.toInt,
+      f"Phase 3 failed: Master received 0x$masterReceived%02X, expected 0x$slaveData3%02X")
+
+      // ---------------------------
+    // PHASE 4: Slave Write → Master Read
+    // ---------------------------
+    // Reconfigure the slave for transmitting:
+    // (Keep the same slave address, but now preload its sdata register with new data)
+    val slaveData4 = BigInt(params.dataWidth, Random)
+    val slaveAddr4 = BigInt(7, Random)
+    writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)         // ensure slave is enabled
+    writeAPB(dut.io.slaveApb, saddrReg.U, slaveAddr4.U)         // same slave address
+    writeAPB(dut.io.slaveApb, sdataReg.U, slaveData4.U)   // preload slave data for transmission
+    
+    var maddrR2 = (slaveAddr4 << 1) & 0xFF
+    maddrR2 = maddrR2 | 0x01
+    // Reconfigure the master for a read transaction:
+    // For a read, the address should be (0x50 with R/W=1) → 0xA1.
+    writeAPB(dut.io.masterApb, maddrReg.U, maddrR2.U)
+    // Clear master's mdata (dummy initial value)
+    writeAPB(dut.io.masterApb, mdataReg.U, 0x00.U)
+    // Ensure BAUD is still 2.
+    writeAPB(dut.io.masterApb, mbaudReg.U, 128.U)
+    // Start the master for the read transaction.
+    writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
+    
+    // Wait for the read transaction to complete by waiting for rising edges.
+    count = 0
+    while (!dut.io.interrupt.peek().litToBoolean && count < 10000) {
+      dut.clock.step(1)
+      count += 1
+    }
+
+    // Add assertion after loop
+    assert(count < 10000, "Timeout: Interrupt did not trigger within 1000 cycles")
+    
+    // Read the master's data register
+    val masterReceived2 = readAPB(dut.io.masterApb, mdataReg.U).toInt
+    println(s"[DEBUG] Phase 4: Master received = 0x${masterReceived2.toHexString}, expected = 0x${slaveData4.toString}")
+    assert(masterReceived2 == slaveData4.toInt,
+      f"Phase 4 failed: Master received 0x$masterReceived2%02X, expected 0x$slaveData4%02X")
+    // ---------------------------
+    // PHASE 5: Slave Write → Master Read
+    // ---------------------------
+    // Reconfigure the slave for transmitting:
+    // (Keep the same slave address, but now preload its sdata register with new data)
+    val slaveData5 = BigInt(params.dataWidth, Random)
+    val slaveAddr5 = BigInt(7, Random)
+    writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)         // ensure slave is enabled
+    writeAPB(dut.io.slaveApb, saddrReg.U, slaveAddr5.U)         // same slave address
+    writeAPB(dut.io.slaveApb, sdataReg.U, slaveData5.U)   // preload slave data for transmission
+    
+    var maddrR3 = (slaveAddr5 << 1) & 0xFF
+    maddrR3 = maddrR3 | 0x01
+    // Reconfigure the master for a read transaction:
+    // For a read, the address should be (0x50 with R/W=1) → 0xA1.
+    writeAPB(dut.io.masterApb, maddrReg.U, maddrR3.U)
+    // Clear master's mdata (dummy initial value)
+    writeAPB(dut.io.masterApb, mdataReg.U, 0x00.U)
+    // Ensure BAUD is still 2.
+    writeAPB(dut.io.masterApb, mbaudReg.U, 255.U)
+    // Start the master for the read transaction.
+    writeAPB(dut.io.masterApb, mctrlReg.U, 1.U)
+    
+    // Wait for the read transaction to complete by waiting for rising edges.
+    count = 0
+    while (!dut.io.interrupt.peek().litToBoolean && count < 10000) {
+      dut.clock.step(1)
+      count += 1
+    }
+
+    // Add assertion after loop
+    assert(count < 10000, "Timeout: Interrupt did not trigger within 1000 cycles")
+    
+    // Read the master's data register
+    val masterReceived3 = readAPB(dut.io.masterApb, mdataReg.U).toInt
+    println(s"[DEBUG] Phase 5: Master received = 0x${masterReceived3.toHexString}, expected = 0x${slaveData5.toString}")
+    assert(masterReceived3 == slaveData5.toInt,
+      f"Phase 5 failed: Master received 0x$masterReceived3%02X, expected 0x$slaveData5%02X")
   }
 
-  
-  // Read the master's data register
-  val masterReceived2 = readAPB(dut.io.masterApb, mdataReg.U).toInt
-  println(s"[DEBUG] Phase 2: Master received = 0x${masterReceived2.toHexString}, expected = 0x${slaveData4.toString}")
-  assert(masterReceived2 == slaveData4.toInt,
-    f"Phase 2 failed: Master received 0x$masterReceived2%02X, expected 0x$slaveData4%02X")
-}
-    
 }
