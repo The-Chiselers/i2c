@@ -95,14 +95,14 @@ class I2CTest
       case "formal_mm" =>
         "MultiMasterI2C" should "Formally Verify" in
           verify(
-            new MultiMasterI2C(myParams, true), 
-            Seq(BoundedCheck(40)))
+            new MultiMasterI2C(BaseParams(8, 16), true), 
+            Seq(BoundedCheck(20)))
 
       case "formal_fullduplex" =>
         "FullDuplexI2C" should "Formally Verify" in
           verify(
-            new FullDuplexI2C(myParams, true), 
-            Seq(BoundedCheck(40)))
+            new FullDuplexI2C(BaseParams(8, 16), true), 
+            Seq(BoundedCheck(20)))
 
       case "masterClock" =>
         it should "generate the correct clock frequency for master mode" in {

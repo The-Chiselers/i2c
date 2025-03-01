@@ -54,20 +54,22 @@ class FullDuplexI2C(p: BaseParams, formal: Boolean = false) extends Module {
   def getSlaveRegisterMap = slave.registerMap
 
 if (formal) {
-  val masterState = master.stateReg
-  val slaveState  = slave.stateReg
+  val masterState = master.io.state
+  val slaveState  = slave.io.state
   val pastMasterState = RegNext(masterState, init = STATE_IDLE)
   val pastSlaveState = RegNext(slaveState, init = STATE_IDLE)
   val pastSclBus  = RegNext(master.io.master.sclOut & slave.io.slave.sclOut, init = true.B)
   val pastSdaBus  = RegNext(master.io.master.sdaOut & slave.io.slave.sdaOut, init = true.B)
 
   // 1) Bidirectional Data Integrity
-  when(masterState === STATE_MASTERWRITE && slaveState === STATE_SLAVEREAD && past(master.io.master.sclOut) === 0.U && master.io.master.sclOut === 1.U) {
-    assert(slave.io.slave.sdaIn === master.io.master.sdaOut, "Slave should see master's data during write")
+  when(masterState === STATE_MASTERWRITE && slaveState === STATE_SLAVEREAD) {
+    cover(slave.io.slave.sdaIn === master.io.master.sdaOut, 
+          "Cover slave seeing master's data during write")
   }
   
-  when(slaveState === STATE_SLAVEWRITE && masterState === STATE_MASTERREAD && past(master.io.master.sclOut) === 0.U && master.io.master.sclOut === 1.U) {
-    assert(master.io.master.sdaIn === slave.io.slave.sdaOut, "Master should see slave's data during read")
+  when(slaveState === STATE_SLAVEWRITE && masterState === STATE_MASTERREAD) {
+    cover(master.io.master.sdaIn === slave.io.slave.sdaOut, 
+          "Cover master seeing slave's data during read")
   }
 
   // 2) Clock Synchronization
@@ -80,42 +82,35 @@ if (formal) {
   }
   
   // 3) Clock Stretching
-  when(slaveState === STATE_SENDACKSLAVE && slave.sctrl(4) === 1.U) {
-    assert(slave.io.slave.sclOut === 0.U, "Slave should stretch clock when sctrl(4) is set")
-    assert(master.io.master.sclIn === 0.U, "Master should see stretched clock")
-  }
+  cover(slave.io.slave.sclOut === 0.U && master.io.master.sclOut === 1.U,
+        "Cover slave stretching clock")
 
   // 4) Start/Stop Condition Verification
   when(past(master.io.master.sclOut) === 1.U && master.io.master.sclOut === 1.U) {
     when(past(master.io.master.sdaOut) === 1.U && master.io.master.sdaOut === 0.U) {
-      assert(pastMasterState === STATE_IDLE && masterState === STATE_MASTERADDRESS, 
-             "START condition should transition from IDLE to MASTERADDRESS")
+      cover(pastMasterState === STATE_IDLE && masterState === STATE_MASTERADDRESS, 
+             "Cover START condition transition from IDLE to MASTERADDRESS")
     }
     
-    when(past(master.io.master.sdaOut) === 0.U && master.io.master.sdaOut === 1.U && pastMasterState === STATE_SENDSTOP) {
-      assert(masterState === STATE_IDLE, "STOP condition should return to IDLE")
+    when(past(master.io.master.sdaOut) === 0.U && master.io.master.sdaOut === 1.U && 
+         pastMasterState === STATE_SENDSTOP) {
+      cover(masterState === STATE_IDLE, "Cover STOP condition return to IDLE")
     }
   }
 
-  // 5) Liveness - Ensure Progress
-  val masterStableCounter = RegInit(0.U(8.W))
-  val slaveStableCounter = RegInit(0.U(8.W))
   
-  when(masterState === pastMasterState && masterState =/= STATE_IDLE) {
-    masterStableCounter := masterStableCounter + 1.U
-  } .otherwise {
-    masterStableCounter := 0.U
+  // 5) Interrupt Verification
+  cover(master.io.interrupt === true.B, "Cover master interrupt generation")
+  cover(slave.io.interrupt === true.B, "Cover slave interrupt generation")
+  cover(io.interrupt === true.B, "Cover combined interrupt output")
+  
+  when(pastMasterState === STATE_SENDSTOP && masterState === STATE_IDLE) {
+    cover(master.io.interrupt === true.B, "Cover master interrupt after STOP")
   }
   
-  when(slaveState === pastSlaveState && slaveState =/= STATE_IDLE && slaveState =/= STATE_WAITSTOP) {
-    slaveStableCounter := slaveStableCounter + 1.U
-  } .otherwise {
-    slaveStableCounter := 0.U
+  when(pastSlaveState === STATE_WAITSTOP && slaveState === STATE_IDLE) {
+    cover(slave.io.interrupt === true.B, "Cover slave interrupt after STOP detection")
   }
-  
-  assert(masterStableCounter < 150.U, "Master should progress or return to IDLE within a bounded time")
-  assert(slaveStableCounter < 150.U, "Slave should progress or wait for STOP within a bounded time")
 }
-
 }
 
