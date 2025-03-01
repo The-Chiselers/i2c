@@ -14,7 +14,7 @@ class MultiMasterI2C(p: BaseParams, formal: Boolean = false) extends Module {
     val masterApb1 = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     val masterApb2 = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
     val slaveApb  = new ApbBundle(ApbParams(p.dataWidth, p.addrWidth))
-    
+    val interrupt = Output(Bool())
     val master1 = new MasterInterface
     val master2 = new MasterInterface
     val slave  = new SlaveInterface
@@ -25,6 +25,7 @@ class MultiMasterI2C(p: BaseParams, formal: Boolean = false) extends Module {
   val master1 = Module(new I2C(p, formal))
   val master2 = Module(new I2C(p, formal))
   val slave  = Module(new I2C(p, formal))
+  io.interrupt := master1.io.interrupt | slave.io.interrupt | master2.io.interrupt
 
   master1.io.apb <> io.masterApb1
   master2.io.apb <> io.masterApb2

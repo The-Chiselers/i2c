@@ -167,6 +167,22 @@ class I2CTest
             )
         }
 
+        case "multiMasterExtended" =>
+        it should "handle multi-master arbitration and extra transmission checks" in {
+          val cov = test(new MultiMasterI2C((myParams)))
+            .withAnnotations(backendAnnotations) { dut =>
+              arbitrationTests.multiMasterExtened(dut, myParams)
+            }
+            coverageCollector.collectCoverage(
+              cov.getAnnotationSeq,
+              testName,
+              configName,
+              coverage,
+              covDir
+            )
+        }
+
+
       // Repeated starts from "repeatedStartTests.scala"
       case "repeatedStart" =>
         it should "perform repeated start without stop" in {
@@ -517,6 +533,20 @@ class I2CTest
         coverage,
         covDir
       )      
+    }
+
+    it should "handle multi-master arbitration and extra transmission checks" in {
+    val cov = test(new MultiMasterI2C((myParams)))
+      .withAnnotations(backendAnnotations) { dut =>
+        arbitrationTests.multiMasterExtened(dut, myParams)
+      }
+      coverageCollector.collectCoverage(
+        cov.getAnnotationSeq,
+        "multiMasterExtended",
+        configName,
+        coverage,
+        covDir
+      )
     }
 
     it should "perform repeated start without stop" in {
