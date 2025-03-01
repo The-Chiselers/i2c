@@ -1,32 +1,48 @@
 \section{Simulation}
 
 \subsection{Tests}
-A typical verification environment will:
+The test bench for the I2C module generates multiple configurations to verify functionality under various conditions:
+
 \begin{itemize}
-  \item Randomize addresses, data lengths, and read/write sequences.
-  \item Include Master-only, Slave-only, and multi-master scenarios.
-  \item Stress test with clock stretching and bus errors (e.g., invalid Start/Stop).
+    \item Master-only tests that verify address and data transmission
+    \item Slave response tests that check address recognition and data handling
+    \item Multi-master tests that verify correct arbitration
+    \item Clock stretching tests to ensure proper SCL handling
+    \item Error condition tests that verify proper error detection and handling
 \end{itemize}
+
+The tests include both directed tests with predetermined transactions and randomized tests to explore edge cases and verify robustness.
 
 \subsection{Code Coverage}
-All signals are checked to ensure toggling at least once. Watch for corner cases:
+The test environment measures coverage across all I2C module functions:
+
 \begin{itemize}
-  \item Collision events
-  \item Arbitration lost
-  \item Bus error conditions
-  \item Time-outs
+    \item All state machine transitions
+    \item All register fields
+    \item All control signals and flags
+    \item All error conditions and recovery mechanisms
 \end{itemize}
 
+The coverage metrics ensure that the design is thoroughly verified before synthesis. All inputs and outputs are checked to ensure toggling at least once, with an error thrown if any port fails to toggle.
+
 \subsection{Running Simulation}
-Use your preferred tool (\texttt{iverilog}, \texttt{vcs}, \texttt{questa}, etc.). Example:
+Simulations can be run directly from the command prompt:
+
 \begin{verbatim}
-$ make i2c_test
-# or
-$ vsim i2c_tb
+$ sbt "test:runMain tech.rocksavage.chiselware.I2C.I2CTest"
+\end{verbatim}
+
+Or using make:
+
+\begin{verbatim}
+$ make test
 \end{verbatim}
 
 \subsection{Viewing Waveforms}
-A wave file (e.g., \texttt{i2c.fst}) can be opened in \texttt{gtkwave} or any other viewer:
+Generated waveforms can be viewed using standard waveform viewers:
+
 \begin{verbatim}
-$ gtkwave ./out/test/i2c.fst
+$ gtkwave ./out/test/i2c_waves.vcd
 \end{verbatim}
+
+The waveforms show all interface signals including master/slave bus operations, internal state transitions, and register access activity.

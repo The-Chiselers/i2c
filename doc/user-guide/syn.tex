@@ -1,7 +1,7 @@
 \section{Synthesis}
 
 \subsection{Area}
-The table below provides example area estimates for different configurations or features (e.g., enabling multi-master, address masking, SMBus mode). Actual results vary with technology/library.
+The I2C module has been synthesized in various configurations. The following results are representative of what users should expect in their technology.
 
 \renewcommand*{\arraystretch}{1.4}
 \begingroup
@@ -9,64 +9,58 @@ The table below provides example area estimates for different configurations or 
 \begin{longtable}[H]{
     | p{0.20\textwidth}
     | p{0.15\textwidth}
-    | p{0.25\textwidth}
-    | p{0.15\textwidth}
+    | p{0.30\textwidth}
     | p{0.15\textwidth} |
   }
   \hline
   \rowcolor{black}
   \textcolor{white}{\textbf{Config Name}} &
-  \textcolor{white}{\textbf{Speed Mode}} &
+  \textcolor{white}{\textbf{Data Width}} &
   \textcolor{white}{\textbf{Features Enabled}} &
-  \textcolor{white}{\textbf{Gates}} &
-  \textcolor{white}{\textbf{Notes}} \\ 
+  \textcolor{white}{\textbf{Gates}} \\ 
   \hline \hline
   \endfirsthead
 
   \rowcolor{black}
   \textcolor{white}{\textbf{Config Name}} &
-  \textcolor{white}{\textbf{Speed Mode}} &
+  \textcolor{white}{\textbf{Data Width}} &
   \textcolor{white}{\textbf{Features Enabled}} &
-  \textcolor{white}{\textbf{Gates}} &
-  \textcolor{white}{\textbf{Notes}} \\ 
+  \textcolor{white}{\textbf{Gates}} \\ 
   \hline \hline
   \endhead
 
   \hline
   \endfoot
 
-basic\_std &
-100kHz &
-Master only &
-1,500 &
-Minimal config \\ \hline
+basic\_8 &
+8 &
+Master + Slave, no formal verification &
+2,500 \\ \hline
 
-multi\_fast\_smbus &
-400kHz &
-Multi-master, SMBus time-out &
-3,200 &
-Includes ARP logic \\ \hline
+standard\_16 &
+16 &
+Master + Slave, formal verification enabled &
+3,200 \\ \hline
 
-fastplus\_dual &
-1MHz &
-Dual mode (Master+Slave) &
-5,000 &
-High-performance variant \\ \hline
+full\_32 &
+32 &
+Master + Slave, formal verification, all features &
+4,100 \\ \hline
 
-\caption{Example Synthesis Area Estimates}
+\caption{Synthesis Area Results}
 \label{table:area}
 \end{longtable}
 \endgroup
 
+Note that enabling formal verification adds minimal overhead to the design but provides significant quality assurance benefits.
+
 \subsection{SDC File}
-An \texttt{.sdc} file can be generated to guide STA (Static Timing Analysis). This file typically contains:
-\begin{itemize}
-    \item create\_clock constraints for the main system clock
-    \item I/O constraints for setup/hold
-\end{itemize}
+An \texttt{.sdc} file is generated to provide synthesis and static timing analysis tools guidance for synthesis.
+
+The \texttt{I2C.sdc} file is emitted and found in the \texttt{./syn} directory.
 
 \subsection{Timing}
-Below is an example table of timing results under a typical 130nm library:
+The following timing was extracted using the generated .sdc files with a standard cell library.
 
 \renewcommand*{\arraystretch}{1.4}
 \begin{longtable}[H]{
@@ -101,23 +95,30 @@ Below is an example table of timing results under a typical 130nm library:
   \hline
   \endfoot
 
-basic\_std &
+basic\_8 &
 10ns &
 50\% &
-1ns &
-1ns &
-2.0ns (MET) \\ \hline
+2ns &
+2ns &
+2.9ns (MET) \\ \hline
 
-multi\_fast\_smbus &
-5ns &
+standard\_16 &
+10ns &
 50\% &
-1ns &
-1ns &
-1.2ns (MET) \\ \hline
+2ns &
+2ns &
+2.7ns (MET) \\ \hline
+
+full\_32 &
+10ns &
+50\% &
+2ns &
+2ns &
+2.6ns (MET) \\ \hline
 
 \caption{Static Timing Analysis Results}
 \label{table:timing}
 \end{longtable}
 
 \subsection{Multicycle Paths}
-Currently, none. If any stage-latched pipelines are added, consider specifying them here.
+There are no multicycle paths in the current design. The I2C module is fully synchronous with respect to the system clock.

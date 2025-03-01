@@ -1,0 +1,140 @@
+\section{Usage Examples}
+
+\subsection{Master Write Example}
+The following example demonstrates a typical master write operation:
+
+\begin{verbatim}
+// 1. Configure master
+write(MBAUD, 0x0A);         // Configure for 100kHz
+write(MCTRL, 0x01);         // Enable master
+
+// 2. Send data to slave device at address 0x50
+write(MADDR, 0xA0);         // Address 0x50 (7-bit) with Write bit (0)
+                            // This will issue START condition
+
+// 3. Wait for address transmission to complete
+while ((read(MSTATUS) & 0x40) == 0); // Wait for WIF flag
+
+// 4. Check if slave acknowledged
+if ((read(MSTATUS) & 0x10) != 0) {
+    // NACK received, handle error
+    // ...
+    return;
+}
+
+// 5. Send data bytes
+write(MDATA, 0x12);         // Send first data byte
+while ((read(MSTATUS) & 0x40) == 0); // Wait for WIF flag
+
+write(MDATA, 0x34);         // Send second data byte
+while ((read(MSTATUS) & 0x40) == 0); // Wait for WIF flag
+
+// 6. Done (STOP condition automatically sent)
+\end{verbatim}
+
+\subsection{Master Read Example}
+The following example demonstrates a typical master read operation:
+
+\begin{verbatim}
+// 1. Configure master
+write(MBAUD, 0x0A);         // Configure for 100kHz
+write(MCTRL, 0x01);         // Enable master
+
+// 2. Request data from slave device at address 0x50
+write(MADDR, 0xA1);         // Address 0x50 (7-bit) with Read bit (1)
+                            // This will issue START condition
+
+// 3. Wait for address transmission to complete
+while ((read(MSTATUS) & 0x40) == 0); // Wait for WIF flag
+
+// 4. Check if slave acknowledged
+if ((read(MSTATUS) & 0x10) != 0) {
+    // NACK received, handle error
+    // ...
+    return;
+}
+
+// 5. Read first data byte (ACK)
+while ((read(MSTATUS) & 0x80) == 0); // Wait for RIF flag
+uint8_t data1 = read(MDATA);
+
+// 6. Read second data byte (NACK to end transmission)
+write(MCTRL, 0x03);         // Set ACKACT to NACK
+while ((read(MSTATUS) & 0x80) == 0); // Wait for RIF flag
+uint8_t data2 = read(MDATA);
+
+// 7. Done (STOP condition automatically sent)
+\end{verbatim}
+
+\subsection{Slave Operation Example}
+The following example demonstrates slave mode operation:
+
+\begin{verbatim}
+// 1. Configure slave
+write(SADDR, 0x50);         // Set slave address
+write(SCTRL, 0x01);         // Enable slave
+
+// 2. Wait for address match
+while(true) {
+    uint8_t status = read(SSTATUS);
+    
+    // Check if address match has occurred
+    if ((status & 0x41) == 0x41) {  // APIF and AP bits set
+        // Address match detected
+        
+        // 3. Determine direction (read/write)
+        if ((status & 0x02) == 0) {
+            // Master Write, Slave Read
+            handleSlaveReceive();
+        } else {
+            // Master Read, Slave Write
+            handleSlaveTransmit();
+        }
+    }
+    
+    // 4. Check if transaction has ended (STOP condition)
+    if ((status & 0x41) == 0x40) {  // APIF set but AP clear
+        // Transaction ended with STOP
+        break;
+    }
+}
+
+// Slave Receive handler
+void handleSlaveReceive() {
+    while(true) {
+        // Wait for data
+        while ((read(SSTATUS) & 0x80) == 0); // Wait for DIF flag
+        
+        // Read data
+        uint8_t data = read(SDATA);
+        
+        // Process data...
+        
+        // Check if transaction ended
+        if ((read(SSTATUS) & 0x41) == 0x40)
+            break;
+    }
+}
+
+// Slave Transmit handler
+void handleSlaveTransmit() {
+    // Prepare first data byte
+    write(SDATA, 0x55);
+    
+    while(true) {
+        // Wait for byte to be transmitted
+        while ((read(SSTATUS) & 0x80) == 0); // Wait for DIF flag
+        
+        // Check if master has NACKed (end of transaction)
+        if ((read(SSTATUS) & 0x10) != 0)
+            break;
+            
+        // Prepare next data byte
+        write(SDATA, 0xAA);
+        
+        // Check if transaction ended
+        if ((read(SSTATUS) & 0x41) == 0x40)
+            break;
+    }
+}
+\end{verbatim}

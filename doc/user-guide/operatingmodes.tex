@@ -1,22 +1,67 @@
 \section{Operating Modes}
 
-The I2C core supports multiple roles and modes.
+The I2C module supports comprehensive multi-mode operation with both master and slave capabilities that can function simultaneously.
 
 \subsection{Master Mode}
-In Master mode, the I2C core generates the SCL clock, issues Start/Stop conditions, and orchestrates bus communication.
+When operating as a master, the I2C module controls the bus by generating the SCL clock and initiating transactions. Master mode is enabled by setting the ENABLE bit in the MCTRL register.
 
 \begin{itemize}
-    \item \textbf{Single or Multi-Master:} Multi-master requires hardware arbitration to handle collisions.
-    \item \textbf{Clock Generation:} A baud-rate generator sets the SCL frequency within Standard/Fast/Fast+ ranges.
-    \item \textbf{Address Transmission:} The master sets the slave’s 7-bit address and the R/W direction bit, then waits for an ACK.
+    \item \textbf{Transaction Initiation}: Writing to the MADDR register automatically generates a START condition and transmits the slave address with R/W bit.
+    
+    \item \textbf{Clock Generation}: The master SCL frequency is determined by the MBAUD register according to the formula: fSCL = fCLK / (10 + 2 × MBAUD), where fCLK is the system clock frequency in MHz.
+    
+    \item \textbf{Write Operations}: After address transmission and slave ACK, data is written to the MDATA register for transmission. The WIF flag in MSTATUS is set when each byte is transferred.
+    
+    \item \textbf{Read Operations}: After address transmission with R/W bit set to 1 and slave ACK, the master receives data which can be read from the MDATA register. The RIF flag in MSTATUS is set when each byte is received.
+    
+    \item \textbf{ACK/NACK Control}: During read operations, the ACKACT bit in MCTRL controls whether an ACK (0) or NACK (1) is sent after each received byte. Setting ACKACT to 1 typically signals the end of a read operation.
+    
+    \item \textbf{Clock Stretching}: The SCLH bit in MCTRL allows the master to stretch the clock by holding SCL low, which is reflected in the CLKHOLD status bit.
+    
+    \item \textbf{Multi-Master Support}: The module includes arbitration detection that sets the ARBLOST flag if another master takes control of the bus. The BUSSTATE bits in MSTATUS track the bus ownership state (IDLE, OWNER, BUSY).
 \end{itemize}
 
 \subsection{Slave Mode}
-In Slave mode, the I2C core monitors the bus for its own address, then responds accordingly:
+In Slave mode, the I2C module monitors the bus for its own address and responds according to the master's commands. Slave mode is enabled by setting the ENABLE bit in the SCTRL register.
 
 \begin{itemize}
-    \item \textbf{Address Match:} If the incoming address matches the core's SADDR register, the slave acknowledges.
-    \item \textbf{Read/Write Handling:} The \texttt{DIR} bit (or equivalent) indicates whether the master is reading or writing to the slave.
-    \item \textbf{Clock Stretching:} The slave can hold SCL low to delay the master if needed.
+    \item \textbf{Address Recognition}: The 7-bit address in the SADDR register defines which address the slave will respond to. When this address is detected on the bus, the AP and APIF flags in SSTATUS are set.
+    
+    \item \textbf{Direction Determination}: When an address match occurs, the DIR bit in SSTATUS indicates whether the master is reading from the slave (1) or writing to the slave (0).
+    
+    \item \textbf{Data Reception}: During master write operations, received data is available in the SDATA register, and the DIF flag is set when each byte is received.
+    
+    \item \textbf{Data Transmission}: During master read operations, data written to the SDATA register is transmitted to the master. The DIF flag is set when each byte is transmitted.
+    
+    \item \textbf{ACK/NACK Control}: The ACKACT bit in SCTRL determines whether the slave sends an ACK (0) or NACK (1) in response to received data. NACK can be used to signal inability to receive more data.
+    
+    \item \textbf{Clock Stretching}: The SCLH bit in SCTRL allows the slave to stretch the clock by holding SCL low when additional processing time is needed, which is reflected in the CLKHOLD status bit.
+    
+    \item \textbf{STOP Detection}: When a STOP condition is detected, the APIF flag is set and the AP flag is cleared to indicate end of transaction.
 \end{itemize}
 
+\subsection{Simultaneous Master-Slave Operation}
+The I2C module can function as both master and slave simultaneously, provided each mode is properly configured through its respective control registers.
+
+\begin{itemize}
+    \item Both master and slave sections can be independently enabled or disabled.
+    
+    \item When operating in dual role, care should be taken to manage register access to avoid conflicts.
+    
+    \item The interrupt output combines master and slave interrupt sources, allowing software to determine which section triggered the interrupt by checking the status registers.
+    
+    \item In multi-master configurations, the module can dynamically switch between master and slave roles as needed.
+\end{itemize}
+
+\subsection{Error Handling}
+The I2C module includes comprehensive error detection and handling capabilities:
+
+\begin{itemize}
+    \item \textbf{Arbitration Lost}: In multi-master environments, the ARBLOST flag indicates when the module has lost arbitration to another master.
+    
+    \item \textbf{NACK Response}: The RXACK bit in status registers indicates whether an ACK or NACK was received, allowing software to detect communication failures.
+    
+    \item \textbf{Bus State Tracking}: The BUSSTATE bits provide awareness of the current bus state, helping to detect potential bus conflicts or errors.
+    
+    \item \textbf{Smart Recovery}: The module automatically returns to IDLE state when detecting STOP conditions, facilitating recovery from error conditions.
+\end{itemize}

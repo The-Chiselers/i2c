@@ -1,7 +1,7 @@
-% chktex-file 44
-\subsection{Register Interface}
- 
-When programming registers, each register starts on a byte address, and the last bits it would take up in its final byte based on its size are unused. To find the size in bytes for any register, divide by the register size, and round up to the nearest whole number. For example, a 32-bit register would take up 4 bytes, and a 1-bit register would take up 1 byte.
+\section{Register Interface}
+
+The I2C module uses an APB interface for register access. Each register starts on a byte address, with the size indicated in the table below. For registers smaller than the data width, the upper bits are unused during writes and read as zero.
+
 \renewcommand*{\arraystretch}{1.4}
 \begingroup
 \small
@@ -28,378 +28,342 @@ When programming registers, each register starts on a byte address, and the last
   
   MCTRL  &   
   8 &   
-  DESC TODO \\ \hline
+  Master Control Register. Contains bits to enable I2C master operation, control ACK/NACK generation, and perform clock stretching. \\ \hline
 
   MSTATUS &   
   8 &   
-  DESC TODO \\ \hline
+  Master Status Register. Contains status flags for operation completion, bus state, arbitration status, and slave ACK response. \\ \hline
 
   MBAUD &   
   8 &   
-  DESC TODO \\ \hline
+  Master Baud Rate Register. Controls the SCL clock frequency when operating as a master. \\ \hline
 
   MADDR &   
   8 &   
-  DESC TODO \\ \hline
+  Master Address Register. Holds the slave address and R/W bit for the next transaction. Writing to this register triggers a START condition. \\ \hline
 
   MDATA &   
   dataWidth &   
-  DESC TODO \\ \hline
+  Master Data Register. Provides access to the master shift register for transmitting or receiving data. \\ \hline
 
   SCTRL  &   
   8 &   
-  DESC TODO \\ \hline
+  Slave Control Register. Contains bits to enable I2C slave operation, control ACK/NACK generation, and perform clock stretching. \\ \hline
 
   SSTATUS &   
   8 &   
-  DESC TODO \\ \hline
+  Slave Status Register. Contains status flags for data transfer completion, address recognition, direction, and slave clock hold status. \\ \hline
 
   SADDR &   
   8 &   
-  DESC TODO \\ \hline
+  Slave Address Register. Holds the 7-bit address that the slave responds to. \\ \hline
 
   SDATA &   
   dataWidth &   
-  DESC TODO \\ \hline
+  Slave Data Register. Provides access to the slave shift register for transmitting or receiving data. \\ \hline
 
 \end{longtable}
 \captionsetup{aboveskip=0pt}
 \captionof{table}{Register Interface}\label{table:register}
 
-  \newpage
+\subsection{Register Operation}
 
-  \subsection{Register Operation}
-
-  \subsubsection{Master Control (\texttt{MCTRL})}
-  \label{sec:mctrl}
+\subsubsection{Master Control (\texttt{MCTRL})}
+\label{sec:mctrl}
   
-  \begin{table}[H]
-      \centering
-      \caption{Master Control (\texttt{MCTRL})}
-      \begin{tabular}{@{}cccccccccc@{}}
-          \toprule
-          \textbf{Bit} & 7 & 6 & 5 & 4 & 3 & 2 & 1 & 0 \\ \midrule
-          \textbf{Name} & N/A & N/A & N/A & SCLH & N/A & N/A & ACKACT & ENABLE \\ \bottomrule
-      \end{tabular}
-      \label{tab:mctrl}
-  \end{table}
-  
-  \begin{itemize}
-      \item \textbf{Bit 4 - SCLH (SCL Hold):} 
-      \begin{itemize}
-          \item \texttt{0}: Do NOT hold the SCL line low
-          \item \texttt{1}: Hold the SCL line low
-      \end{itemize}
-      \textit{Description:} This bit allows the user to hold the SCL low indefinetly. This can only be used for pausing operation to write an ACK/NACK to the I2C Slave.
-      
-      \item \textbf{Bit 1 - ACKAT (Acknowledge Action):} 
-      \begin{itemize}
-          \item \texttt{0}: Send ACK
-          \item \texttt{1}: Send NACK
-      \end{itemize}
-      \textit{Description:} User can send an ACK/NACK to data recieved from Slave in Master Read Mode.
-      
-      \item \textbf{Bit 0 - ENABLE (Enable Master):} 
-      \begin{itemize}
-          \item \texttt{0}: Master is disabled.
-          \item \texttt{1}: Master is enabled.
-      \end{itemize}
-      \textit{Description:} Writing a '1' to this bit will enable the I2C as a master.
-  \end{itemize}
-  
-  \subsubsection{Master Status (\texttt{MSTATUS})}
-  \label{sec:mstatus}
-  
-  \begin{table}[H]
-      \centering
-      \caption{Master Status (\texttt{MSTATUS})}
-      \begin{tabular}{@{}cccccccc@{}}
-          \toprule
-          \textbf{Bit} & 7 & 6 & 5 & 4 & 3 & 2 & 1-0 \\ \midrule
-          \textbf{Name} & RIF & WIF & CLKHOLD & RXACK & N/A & ARBLOST & BUSSTATE[1:0] \\ \bottomrule
-      \end{tabular}
-      \label{tab:mstatus}
-  \end{table}
-  
-  
-  \begin{itemize}
-      \item \textbf{Bit 7 - RIF (Read Interrupt Flag):} 
-      \begin{itemize}
-          \item \texttt{0}: This flag can be cleared by: 1. Writing a '1' to it. 2. Writing to the MADDR register. 3. Writing/Reading the MDATA register.
-          \item \texttt{1}: Enabled.
-      \end{itemize}
-      \textit{Description:} This flag is set to '1' when the master byte read operation is successfully completed and can be cleared using the methods listed above.
-      
-      \item \textbf{Bit 6 - WIF (Write Interrupt Flag):} 
-      \begin{itemize}
-          \item \texttt{0}: This flag can be cleared by: 1. Writing a '1' to it. 2. Writing to the MADDR register. 3. Writing/Reading the MDATA register.
-          \item \texttt{1}: Enabled.
-      \end{itemize}
-      \textit{Description:} This flag is set to '1' when the master transmit address or byte write operation is completed, regardless of the occrurence of arbitration lost.
-      
-      \item \textbf{Bit 5 - CLKHOLD (Clock Hold):} 
-      \begin{itemize}
-          \item \texttt{0}: Normal clock operation is occuring.
-          \item \texttt{1}: Master is currently holding SCL low.
-      \end{itemize}
-      \textit{Description:} The flag is set to '1' when the master is currently holding the SCL low, stretching the I2C period. This bit can be cleared using the methods from the RIF/WIF flag.
-
-      \item \textbf{Bit 4 - RXACK (Recieved Acknowledge):} 
-      \begin{itemize}
-          \item \texttt{0}: The most recent Acknowledge bit from the slave was ACK - slave is ready for more data.
-          \item \texttt{1}: The most recent Acknowledge bit from the slave was NACK - slave is not able to or does not need to recieve more data.
-      \end{itemize}
-      \textit{Description:} Status Bit of the Slave Acknowledge state.
-
-      \item \textbf{Bit 2 - ARBLOST (Arbitration Lost):} 
-      \begin{itemize}
-          \item \texttt{0}: Master still has control of bus.
-          \item \texttt{1}: This master has lost arbitration to another master.
-      \end{itemize}
-      \textit{Description:} Arbitration status of current master. ARBLOST can occur: 1. While transmitting an address packet 2. While writing data to slave. This bit can be cleared using the methods from the RIF/WIF flag.
-
-      \item \textbf{Bits 1-0 - BUSSTATE[1:0] (Bus State):} 
-      \begin{itemize}
-          \item \texttt{00}: UNKOWN.
-          \item \texttt{01}: IDLE - Master is currently in the Idle state.
-          \item \texttt{10}: OWNER - Master is currently in control of the bus.
-          \item \texttt{11}: BUSY - Another Master currently has control of the bus.
-      \end{itemize}
-      \textit{Description:} Status of the I2C bus, useful for multi-master settings and arbitration handling.
-  \end{itemize}
-  
-  \subsubsection{Master Baud Rate (\texttt{MBAUD})}
-  \label{sec:mbaud}
-  
-  \begin{table}[H]
-      \centering
-      \caption{Master Baud Rate (\texttt{MBAUD})}
-      \begin{tabular}{@{}cc@{}}
-          \toprule
-          \textbf{Bit} & 7 - 0 \\ \midrule
-          \textbf{Name} & BAUD \\ \bottomrule
-      \end{tabular}
-      \label{tab:mbaud}
-  \end{table}
-  
-  \begin{itemize}
-      
-      \item \textbf{Bits 7-0 - BAUD[7:0] (Baud Rate):} 
-      \textit{Description:} This bit field is used to derive the SCL high and low time. It must be written while the master is disabled. The master
-      can be disabled by writing ‘0’ to the Enable TWI Master (ENABLE) bit from the Master Control Register. fscl = fclk / (10 + 2 x BAUD)
-  \end{itemize}
-
-  \subsubsection{Master Address (\texttt{MADDR})}
-  \label{sec:maddr}
-
-  \begin{table}[H]
+\begin{table}[H]
     \centering
-    \caption{Master Address (\texttt{MADDR})}
+    \caption{Master Control (\texttt{MCTRL})}
+    \begin{tabular}{@{}cccccccccc@{}}
+        \toprule
+        \textbf{Bit} & 7 & 6 & 5 & 4 & 3 & 2 & 1 & 0 \\ \midrule
+        \textbf{Name} & N/A & N/A & N/A & SCLH & N/A & N/A & ACKACT & ENABLE \\ \bottomrule
+    \end{tabular}
+    \label{tab:mctrl}
+\end{table}
+
+\begin{itemize}
+    \item \textbf{Bit 4 - SCLH (SCL Hold):} 
+    \begin{itemize}
+        \item \texttt{0}: Normal SCL operation
+        \item \texttt{1}: Hold SCL line low to pause communication
+    \end{itemize}
+    \textit{Description:} When set, the master stretches the SCL clock by holding it low. This can be used to temporarily pause communication when the master needs more time to process data before continuing. The CLKHOLD status bit will be set in MSTATUS when this bit is active.
+    
+    \item \textbf{Bit 1 - ACKACT (Acknowledge Action):} 
+    \begin{itemize}
+        \item \texttt{0}: Send ACK in response to received data
+        \item \texttt{1}: Send NACK in response to received data
+    \end{itemize}
+    \textit{Description:} Controls whether the master sends ACK or NACK when receiving data from a slave. Typically set to NACK for the last byte to indicate end of transfer.
+    
+    \item \textbf{Bit 0 - ENABLE (Enable Master):} 
+    \begin{itemize}
+        \item \texttt{0}: Master functionality disabled
+        \item \texttt{1}: Master functionality enabled
+    \end{itemize}
+    \textit{Description:} Enables the I2C master functionality. This bit must be set before initiating any master operations.
+\end{itemize}
+
+\subsubsection{Master Status (\texttt{MSTATUS})}
+\label{sec:mstatus}
+
+\begin{table}[H]
+    \centering
+    \caption{Master Status (\texttt{MSTATUS})}
+    \begin{tabular}{@{}cccccccc@{}}
+        \toprule
+        \textbf{Bit} & 7 & 6 & 5 & 4 & 3 & 2 & 1-0 \\ \midrule
+        \textbf{Name} & RIF & WIF & CLKHOLD & RXACK & N/A & ARBLOST & BUSSTATE[1:0] \\ \bottomrule
+    \end{tabular}
+    \label{tab:mstatus}
+\end{table}
+
+\begin{itemize}
+    \item \textbf{Bit 7 - RIF (Read Interrupt Flag):} 
+    \begin{itemize}
+        \item \texttt{0}: No read operation completed
+        \item \texttt{1}: Master read operation completed
+    \end{itemize}
+    \textit{Description:} Set when a master read operation is complete. Cleared by writing a '1' to this bit, writing to MADDR, or reading/writing MDATA.
+    
+    \item \textbf{Bit 6 - WIF (Write Interrupt Flag):} 
+    \begin{itemize}
+        \item \texttt{0}: No write operation completed
+        \item \texttt{1}: Master write operation completed
+    \end{itemize}
+    \textit{Description:} Set when a master address or data write operation is complete. Cleared by writing a '1' to this bit, writing to MADDR, or reading/writing MDATA.
+    
+    \item \textbf{Bit 5 - CLKHOLD (Clock Hold):} 
+    \begin{itemize}
+        \item \texttt{0}: SCL operating normally
+        \item \texttt{1}: SCL being held low by master
+    \end{itemize}
+    \textit{Description:} Indicates that the master is currently stretching the clock by holding SCL low.
+    
+    \item \textbf{Bit 4 - RXACK (Received Acknowledge):} 
+    \begin{itemize}
+        \item \texttt{0}: ACK received
+        \item \texttt{1}: NACK received
+    \end{itemize}
+    \textit{Description:} Indicates whether an ACK or NACK was received from the slave in response to an address or data transmission.
+    
+    \item \textbf{Bit 2 - ARBLOST (Arbitration Lost):} 
+    \begin{itemize}
+        \item \texttt{0}: No arbitration lost
+        \item \texttt{1}: Arbitration lost to another master
+    \end{itemize}
+    \textit{Description:} Indicates that this master lost arbitration to another master on the bus. Cleared by writing a '1' to this bit.
+    
+    \item \textbf{Bits 1-0 - BUSSTATE[1:0] (Bus State):} 
+    \begin{itemize}
+        \item \texttt{00}: Reserved
+        \item \texttt{01}: IDLE - Bus is free
+        \item \texttt{10}: OWNER - This master owns the bus
+        \item \texttt{11}: BUSY - Another master owns the bus
+    \end{itemize}
+    \textit{Description:} Indicates the current state of the I2C bus from this master's perspective.
+\end{itemize}
+
+\subsubsection{Master Baud Rate (\texttt{MBAUD})}
+\label{sec:mbaud}
+
+\begin{table}[H]
+    \centering
+    \caption{Master Baud Rate (\texttt{MBAUD})}
     \begin{tabular}{@{}cc@{}}
         \toprule
         \textbf{Bit} & 7 - 0 \\ \midrule
-        \textbf{Name} & ADDR \\ \bottomrule
+        \textbf{Name} & BAUD \\ \bottomrule
     \end{tabular}
-    \label{tab:maddr}
-  \end{table}
+    \label{tab:mbaud}
+\end{table}
 
-  \begin{itemize}
-    
-    \item \textbf{Bits 7-0 - ADDR[7:0] (Address):} 
-    \textit{Description:} This register contains the address of the external slave device. When this bit field is written, the I2C will issue a Start
-    condition, and the shift register performs a byte transmit operation on the bus depending on the bus state.
-    This register can be read at any time without interfering with the ongoing bus activity since a read access does not
-    trigger the master logic to perform any bus protocol related operations.
-    The master control logic uses the bit 0 of this register as the R/W direction bit
-  \end{itemize}
+\begin{itemize}
+    \item \textbf{Bits 7-0 - BAUD[7:0] (Baud Rate):} 
+    \textit{Description:} This register controls the I2C clock frequency when operating as a master. The clock frequency is determined by the formula: fscl = fclk / (10 + 2 × BAUD), where fclk is the system clock frequency in MHz. It is recommended to set this register while the master is disabled.
+\end{itemize}
 
-    \subsubsection{Master Data (\texttt{MDATA})}
-    \label{sec:mdata}
-  
-    \begin{table}[H]
-      \centering
-      \caption{Master Data (\texttt{MDATA})}
-      \begin{tabular}{@{}cc@{}}
-          \toprule
-          \textbf{Bit} & 7 - 0 \\ \midrule
-          \textbf{Name} & DATA \\ \bottomrule
-      \end{tabular}
-      \label{tab:mdata}
-    \end{table}
-  
-    \begin{itemize}
-      
-      \item \textbf{Bits 7-0 - DATA[7:0] (Data):} 
-      \textit{Description:} This bit field provides direct access to the master’s physical shift register, which is used to shift out data on the bus
-      (transmit) and to shift in data received from the bus (receive). The direct access implies that the MDATA register
-      cannot be accessed during byte transmissions.
-    \end{itemize}
+\subsubsection{Master Address (\texttt{MADDR})}
+\label{sec:maddr}
 
-    %Slave Registers
-    \subsubsection{Slave Control (\texttt{SCTRL})}
-    \label{sec:sctrl}
-    
-    \begin{table}[H]
-        \centering
-        \caption{Slave Control (\texttt{SCTRL})}
-        \begin{tabular}{@{}cccccccccc@{}}
-            \toprule
-            \textbf{Bit} & 7 & 6 & 5 & 4 & 3 & 2 & 1 & 0 \\ \midrule
-            \textbf{Name} & N/A & N/A & N/A & SCLH & N/A & N/A & ACKACT & ENABLE \\ \bottomrule
-        \end{tabular}
-        \label{tab:mctrl}
-    \end{table}
-    
-    \begin{itemize}
-        \item \textbf{Bit 4 - SCLH (SCL Hold):} 
-        \begin{itemize}
-            \item \texttt{0}: Do NOT hold the SCL line low
-            \item \texttt{1}: Hold the SCL line low
-        \end{itemize}
-        \textit{Description:} This bit allows the user to hold the SCL low indefinetly. This can only be used for pausing operation to write an ACK/NACK to the I2C Master.
-        
-        \item \textbf{Bit 1 - ACKAT (Acknowledge Action):} 
-        \begin{itemize}
-            \item \texttt{0}: Send ACK
-            \item \texttt{1}: Send NACK
-        \end{itemize}
-        \textit{Description:} User can send an ACK/NACK to data recieved from Master in Slave Read Mode.
-        
-        \item \textbf{Bit 0 - ENABLE (Enable Slave):} 
-        \begin{itemize}
-            \item \texttt{0}: Slave is disabled.
-            \item \texttt{1}: Slave is enabled.
-        \end{itemize}
-        \textit{Description:} Writing a '1' to this bit will enable the I2C as a Slave.
-    \end{itemize}
-    
-    \subsubsection{Slave Status (\texttt{SSTATUS})}
-    \label{sec:sstatus}
-    
-    \begin{table}[H]
-        \centering
-        \caption{Slave Status (\texttt{SSTATUS})}
-        \begin{tabular}{@{}ccccccccc@{}}
-            \toprule
-            \textbf{Bit} & 7 & 6 & 5 & 4 & 3 & 2 & 1 & 0 \\ \midrule
-            \textbf{Name} & DIF & APIF & CLKHOLD & RXACK & N/A & N/A & DIR & AP \\ \bottomrule
-        \end{tabular}
-        \label{tab:sstatus}
-    \end{table}
-    
-    
-    \begin{itemize}
-        \item \textbf{Bit 7 - DIF (Data Interrupt Flag):} 
-        \begin{itemize}
-            \item \texttt{0}: This flag can be cleared by: 1. Writing a '1' to it. 2. Writing/Reading the SDATA register.
-            \item \texttt{1}: Enabled.
-        \end{itemize}
-        \textit{Description:} This flag is set to '1' when the slave byte transmit or recieve operation is completed.
-        
-        \item \textbf{Bit 6 - APIF (Address or Stop Interrupt Flag):} 
-        \begin{itemize}
-            \item \texttt{0}: This flag can be cleared using the same methods in DIF.
-            \item \texttt{1}: Enabled.
-        \end{itemize}
-        \textit{Description:} This flag is set to '1' when the slave address has been recieved, or by a Stop condition. 
-        
-        \item \textbf{Bit 5 - CLKHOLD (Clock Hold):} 
-        \begin{itemize}
-            \item \texttt{0}: Normal clock operation is occuring.
-            \item \texttt{1}: Slave is currently holding SCL low.
-        \end{itemize}
-        \textit{Description:} The flag is set to '1' when the slave is currently holding the SCL low, stretching the I2C period. This bit can be cleared using the methods from the DIF flag.
+\begin{table}[H]
+  \centering
+  \caption{Master Address (\texttt{MADDR})}
+  \begin{tabular}{@{}cc@{}}
+      \toprule
+      \textbf{Bit} & 7 - 0 \\ \midrule
+      \textbf{Name} & ADDR \\ \bottomrule
+  \end{tabular}
+  \label{tab:maddr}
+\end{table}
+
+\begin{itemize}
   
-        \item \textbf{Bit 4 - RXACK (Recieved Acknowledge):} 
-        \begin{itemize}
-            \item \texttt{0}: The most recent Acknowledge bit from the master was ACK - master is ready for more data.
-            \item \texttt{1}: The most recent Acknowledge bit from the master was NACK - master is not able to or does not need to recieve more data.
-        \end{itemize}
-        \textit{Description:} Status Bit of the Slave Acknowledge state.
+  \item \textbf{Bits 7-0 - ADDR[7:0] (Address):} 
+  \textit{Description:} Contains the 7-bit slave address (bits 7:1) and the R/W direction bit (bit 0). Writing to this register triggers a START condition if the master is enabled and the bus is available. The master will then transmit this address on the bus and wait for an ACK from the addressed slave. If bit 0 is 0, a write operation follows; if bit 0 is 1, a read operation follows.
+\end{itemize}
+
+\subsubsection{Master Data (\texttt{MDATA})}
+\label{sec:mdata}
   
-        \item \textbf{Bit 1 - DIR (Read/Write Direction):} 
-        \begin{itemize}
-            \item \texttt{0}: Master write operation is in progress.
-            \item \texttt{1}: Master read operation is in progress.
-        \end{itemize}
-        \textit{Description:} This bit reflects the direction bit value from the last address packet recieved from the master device.
+\begin{table}[H]
+  \centering
+  \caption{Master Data (\texttt{MDATA})}
+  \begin{tabular}{@{}cc@{}}
+      \toprule
+      \textbf{Bit} & dataWidth-1 - 0 \\ \midrule
+      \textbf{Name} & DATA \\ \bottomrule
+  \end{tabular}
+  \label{tab:mdata}
+\end{table}
+
+\begin{itemize}
   
-        \item \textbf{Bit 0 - AP (Address or Stop):} 
-        \begin{itemize}
-          \item \texttt{0}: A stop condition generated the interrupt on the APIF flag.
-          \item \texttt{1}: Address detection generated the interrupt on the APIF flag.
-        \end{itemize}
-        \textit{Description:} This bit determines whether the APID interrupt is due to an address detection or a Stop condition.
-    \end{itemize}
-    
-    \subsubsection{Slave Address (\texttt{SADDR})}
-    \label{sec:saddr}
-  
-    \begin{table}[H]
-      \centering
-      \caption{Slave Address (\texttt{SADDR})}
-      \begin{tabular}{@{}cc@{}}
-          \toprule
-          \textbf{Bit} & 7 - 0 \\ \midrule
-          \textbf{Name} & ADDR \\ \bottomrule
-      \end{tabular}
-      \label{tab:saddr}
-    \end{table}
-  
-    \begin{itemize}
-      
-      \item \textbf{Bits 7-0 - ADDR[7:0] (Address):} 
-      \textit{Description:} The Slave Address register is used by the slave address match logic to determine if a master device
-      has addressed the slave. The Address or Stop Interrupt Flag (APIF) and the Address or Stop (AP) bit in the
-      Slave Status register are set to ‘1’ if an address packet is received.
-    \end{itemize}
-  
-      \subsubsection{Slave Data (\texttt{SDATA})}
-      \label{sec:sdata}
-    
-      \begin{table}[H]
-        \centering
-        \caption{Slave Data (\texttt{SDATA})}
-        \begin{tabular}{@{}cc@{}}
-            \toprule
-            \textbf{Bit} & 7 - 0 \\ \midrule
-            \textbf{Name} & DATA \\ \bottomrule
-        \end{tabular}
-        \label{tab:sdata}
-      \end{table}
-    
-      \begin{itemize}
-        
-        \item \textbf{Bits 7-0 - DATA[7:0] (Data):} 
-        \textit{Description:} This bit field provides access to the slave data register.
-      \end{itemize}
-  
-  \subsection{Register Addresses}
-  
-  \paragraph{dataWidth: 8}
-  \begin{table}[H]
+  \item \textbf{Bits dataWidth-1:0 - DATA:} 
+  \textit{Description:} This register provides access to the internal shift register used for data transmission and reception. In write mode, writing to this register loads the data to be transmitted. In read mode, reading this register returns the last received data. Reading or writing this register clears the interrupt flags in MSTATUS.
+\end{itemize}
+
+%Slave Registers
+\subsubsection{Slave Control (\texttt{SCTRL})}
+\label{sec:sctrl}
+
+\begin{table}[H]
     \centering
-    \begin{tabular}{|c|c|c|}
-        \hline
-        \rowcolor{darkgray}  % Dark grey background for header row
-        \textcolor{white}{\textbf{Register Name}} & \textcolor{white}{\textbf{Address Start}} & \textcolor{white}{\textbf{Address End}} \\ \hline
-        MCTRL & 0x0 & 0x0 \\ \hline
-        MSTATUS & 0x1 & 0x1 \\ \hline
-        MBAUD & 0x2 & 0x2 \\ \hline
-        MADDR & 0x3 & 0x3 \\ \hline
-        MDATA & 0x4 & 0x4 \\ \hline
-        SCTRL & 0x5 & 0x5 \\ \hline
-        SSTATUS & 0x6 & 0x6 \\ \hline
-        SADDR & 0x7 & 0x7 \\ \hline
-        SDATA & 0x8 & 0x8 \\ \hline
+    \caption{Slave Control (\texttt{SCTRL})}
+    \begin{tabular}{@{}cccccccccc@{}}
+        \toprule
+        \textbf{Bit} & 7 & 6 & 5 & 4 & 3 & 2 & 1 & 0 \\ \midrule
+        \textbf{Name} & N/A & N/A & N/A & SCLH & N/A & N/A & ACKACT & ENABLE \\ \bottomrule
     \end{tabular}
-    \caption{8-bit Register Addressing}
-  \end{table}
-  
-  \paragraph{dataWidth: 16}
-  \begin{table}[H]
+    \label{tab:sctrl}
+\end{table}
+
+\begin{itemize}
+    \item \textbf{Bit 4 - SCLH (SCL Hold):} 
+    \begin{itemize}
+        \item \texttt{0}: Normal SCL operation
+        \item \texttt{1}: Hold SCL line low
+    \end{itemize}
+    \textit{Description:} When set, the slave stretches the SCL clock by holding it low. This can be used when the slave needs more processing time before continuing with data transfer. The CLKHOLD status bit will be set in SSTATUS when this bit is active.
+    
+    \item \textbf{Bit 1 - ACKACT (Acknowledge Action):} 
+    \begin{itemize}
+        \item \texttt{0}: Send ACK in response to received data
+        \item \texttt{1}: Send NACK in response to received data
+    \end{itemize}
+    \textit{Description:} Controls whether the slave sends ACK or NACK when receiving data from a master. Typically set to NACK when the slave cannot accept more data.
+    
+    \item \textbf{Bit 0 - ENABLE (Enable Slave):} 
+    \begin{itemize}
+        \item \texttt{0}: Slave functionality disabled
+        \item \texttt{1}: Slave functionality enabled
+    \end{itemize}
+    \textit{Description:} Enables the I2C slave functionality. When enabled, the slave will monitor the bus for its address.
+\end{itemize}
+
+\subsubsection{Slave Status (\texttt{SSTATUS})}
+\label{sec:sstatus}
+
+\begin{table}[H]
     \centering
-    \begin{tabular}{|c|c|c|}
+    \caption{Slave Status (\texttt{SSTATUS})}
+    \begin{tabular}{@{}ccccccccc@{}}
+        \toprule
+        \textbf{Bit} & 7 & 6 & 5 & 4 & 3 & 2 & 1 & 0 \\ \midrule
+        \textbf{Name} & DIF & APIF & CLKHOLD & RXACK & N/A & N/A & DIR & AP \\ \bottomrule
+    \end{tabular}
+    \label{tab:sstatus}
+\end{table}
+
+\begin{itemize}
+    \item \textbf{Bit 7 - DIF (Data Interrupt Flag):} 
+    \begin{itemize}
+        \item \texttt{0}: No data transfer completed
+        \item \texttt{1}: Data transfer completed
+    \end{itemize}
+    \textit{Description:} Set when a slave data transfer (transmit or receive) is complete. Cleared by writing a '1' to this bit or reading/writing SDATA.
+    
+    \item \textbf{Bit 6 - APIF (Address or Stop Interrupt Flag):} 
+    \begin{itemize}
+        \item \texttt{0}: No address match or STOP condition
+        \item \texttt{1}: Address match or STOP condition detected
+    \end{itemize}
+    \textit{Description:} Set when an address match or STOP condition is detected. The AP bit indicates which event occurred. Cleared by writing a '1' to this bit.
+    
+    \item \textbf{Bit 5 - CLKHOLD (Clock Hold):} 
+    \begin{itemize}
+        \item \texttt{0}: SCL operating normally
+        \item \texttt{1}: SCL being held low by slave
+    \end{itemize}
+    \textit{Description:} Indicates that the slave is currently stretching the clock by holding SCL low.
+    
+    \item \textbf{Bit 4 - RXACK (Received Acknowledge):} 
+    \begin{itemize}
+        \item \texttt{0}: ACK received
+        \item \texttt{1}: NACK received
+    \end{itemize}
+    \textit{Description:} Indicates whether an ACK or NACK was received from the master in response to data transmitted by the slave.
+    
+    \item \textbf{Bit 1 - DIR (Read/Write Direction):} 
+    \begin{itemize}
+        \item \texttt{0}: Master write operation (slave receives)
+        \item \texttt{1}: Master read operation (slave transmits)
+    \end{itemize}
+    \textit{Description:} Indicates the direction of data transfer as determined by the R/W bit in the address packet from the master.
+    
+    \item \textbf{Bit 0 - AP (Address or Stop):} 
+    \begin{itemize}
+        \item \texttt{0}: STOP condition detected
+        \item \texttt{1}: Address match detected
+    \end{itemize}
+    \textit{Description:} When APIF is set, this bit indicates whether the interrupt was caused by an address match (1) or a STOP condition (0).
+\end{itemize}
+
+\subsubsection{Slave Address (\texttt{SADDR})}
+\label{sec:saddr}
+
+\begin{table}[H]
+  \centering
+  \caption{Slave Address (\texttt{SADDR})}
+  \begin{tabular}{@{}cc@{}}
+      \toprule
+      \textbf{Bit} & 7 - 0 \\ \midrule
+      \textbf{Name} & ADDR \\ \bottomrule
+  \end{tabular}
+  \label{tab:saddr}
+\end{table}
+
+\begin{itemize}
+  \item \textbf{Bits 7-0 - ADDR[7:0] (Address):} 
+  \textit{Description:} Contains the 7-bit slave address that this device will respond to. When an address packet is received from a master, the address is compared with this register. If there is a match, the slave responds with an ACK and sets the AP and APIF bits in SSTATUS.
+\end{itemize}
+
+\subsubsection{Slave Data (\texttt{SDATA})}
+\label{sec:sdata}
+
+\begin{table}[H]
+  \centering
+  \caption{Slave Data (\texttt{SDATA})}
+  \begin{tabular}{@{}cc@{}}
+      \toprule
+      \textbf{Bit} & dataWidth-1 - 0 \\ \midrule
+      \textbf{Name} & DATA \\ \bottomrule
+  \end{tabular}
+  \label{tab:sdata}
+\end{table}
+
+\begin{itemize}
+  \item \textbf{Bits dataWidth-1:0 - DATA:} 
+  \textit{Description:} This register provides access to the internal shift register used for slave data transmission and reception. In slave transmit mode, writing to this register loads the data to be transmitted to the master. In slave receive mode, reading this register returns the data received from the master. Reading or writing this register clears the interrupt flags in SSTATUS.
+\end{itemize}
+
+\subsection{Register Addresses}
+
+\paragraph{dataWidth: 8}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|c|c|c|}
       \hline
       \rowcolor{darkgray}  % Dark grey background for header row
       \textcolor{white}{\textbf{Register Name}} & \textcolor{white}{\textbf{Address Start}} & \textcolor{white}{\textbf{Address End}} \\ \hline
@@ -407,31 +371,51 @@ When programming registers, each register starts on a byte address, and the last
       MSTATUS & 0x1 & 0x1 \\ \hline
       MBAUD & 0x2 & 0x2 \\ \hline
       MADDR & 0x3 & 0x3 \\ \hline
-      MDATA & 0x4 & 0x5 \\ \hline
-      SCTRL & 0x6 & 0x6 \\ \hline
-      SSTATUS & 0x7 & 0x7 \\ \hline
-      SADDR & 0x8 & 0x8 \\ \hline
-      SDATA & 0x9 & 0xA \\ \hline
-    \end{tabular}
-    \caption{16-bit Register Addressing}
-  \end{table}
-  
-  \paragraph{dataWidth: 32}
-  \begin{table}[H]
-    \centering
-    \begin{tabular}{|c|c|c|}
-      \hline
-      \rowcolor{darkgray}  % Dark grey background for header row
-      \textcolor{white}{\textbf{Register Name}} & \textcolor{white}{\textbf{Address Start}} & \textcolor{white}{\textbf{Address End}} \\ \hline
-      MCTRL & 0x0 & 0x0 \\ \hline
-      MSTATUS & 0x1 & 0x1 \\ \hline
-      MBAUD & 0x2 & 0x2 \\ \hline
-      MADDR & 0x3 & 0x3 \\ \hline
-      MDATA & 0x4 & 0x6 \\ \hline
-      SCTRL & 0x7 & 0x7 \\ \hline
-      SSTATUS & 0x8 & 0x8 \\ \hline
-      SADDR & 0x9 & 0x9 \\ \hline
-      SDATA & 0xA & 0xC \\ \hline
-    \end{tabular}
-    \caption{32-bit Register Addressing}
-  \end{table}
+      MDATA & 0x4 & 0x4 \\ \hline
+      SCTRL & 0x5 & 0x5 \\ \hline
+      SSTATUS & 0x6 & 0x6 \\ \hline
+      SADDR & 0x7 & 0x7 \\ \hline
+      SDATA & 0x8 & 0x8 \\ \hline
+  \end{tabular}
+  \caption{8-bit Register Addressing}
+\end{table}
+
+\paragraph{dataWidth: 16}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|c|c|c|}
+    \hline
+    \rowcolor{darkgray}  % Dark grey background for header row
+    \textcolor{white}{\textbf{Register Name}} & \textcolor{white}{\textbf{Address Start}} & \textcolor{white}{\textbf{Address End}} \\ \hline
+    MCTRL & 0x0 & 0x0 \\ \hline
+    MSTATUS & 0x1 & 0x1 \\ \hline
+    MBAUD & 0x2 & 0x2 \\ \hline
+    MADDR & 0x3 & 0x3 \\ \hline
+    MDATA & 0x4 & 0x5 \\ \hline
+    SCTRL & 0x6 & 0x6 \\ \hline
+    SSTATUS & 0x7 & 0x7 \\ \hline
+    SADDR & 0x8 & 0x8 \\ \hline
+    SDATA & 0x9 & 0xA \\ \hline
+  \end{tabular}
+  \caption{16-bit Register Addressing}
+\end{table}
+
+\paragraph{dataWidth: 32}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{|c|c|c|}
+    \hline
+    \rowcolor{darkgray}  % Dark grey background for header row
+    \textcolor{white}{\textbf{Register Name}} & \textcolor{white}{\textbf{Address Start}} & \textcolor{white}{\textbf{Address End}} \\ \hline
+    MCTRL & 0x0 & 0x0 \\ \hline
+    MSTATUS & 0x1 & 0x1 \\ \hline
+    MBAUD & 0x2 & 0x2 \\ \hline
+    MADDR & 0x3 & 0x3 \\ \hline
+    MDATA & 0x4 & 0x7 \\ \hline
+    SCTRL & 0x8 & 0x8 \\ \hline
+    SSTATUS & 0x9 & 0x9 \\ \hline
+    SADDR & 0xA & 0xA \\ \hline
+    SDATA & 0xB & 0xE \\ \hline
+  \end{tabular}
+  \caption{32-bit Register Addressing}
+\end{table}
