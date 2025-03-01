@@ -149,4 +149,143 @@ object arbitrationTests {
   }
 }
 
+ def multiMasterExtened(dut: MultiMasterI2C, params: BaseParams): Unit = {
+  implicit val clk: Clock = dut.clock
+  dut.clock.setTimeout(0)
+
+  // --- Configure SLAVE registers ---
+  val sctrlReg = dut.getSlaveRegisterMap.getAddressOfRegister("sctrl").get
+  val saddrReg  = dut.getSlaveRegisterMap.getAddressOfRegister("saddr").get
+  val sdataReg  = dut.getSlaveRegisterMap.getAddressOfRegister("sdata").get
+
+  val slaveAddr = BigInt(7, Random)
+  // Enable slave and set slave address
+  writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)     // enable slave
+  writeAPB(dut.io.slaveApb, saddrReg.U, slaveAddr.U)  // slave address = 0x50
+
+  // --- Configure MASTER 1 and MASTER 2 registers concurrently ---
+  val maddrReg1  = dut.getMasterRegisterMap1.getAddressOfRegister("maddr").get
+  val mbaudReg1  = dut.getMasterRegisterMap1.getAddressOfRegister("mbaud").get
+  val mctrlReg1 = dut.getMasterRegisterMap1.getAddressOfRegister("mctrl").get
+  val mdataReg1  = dut.getMasterRegisterMap1.getAddressOfRegister("mdata").get
+  val mstatusReg1 = dut.getMasterRegisterMap1.getAddressOfRegister("mstatus").get
+
+  val maddrReg2  = dut.getMasterRegisterMap2.getAddressOfRegister("maddr").get
+  val mbaudReg2  = dut.getMasterRegisterMap2.getAddressOfRegister("mbaud").get
+  val mctrlReg2 = dut.getMasterRegisterMap2.getAddressOfRegister("mctrl").get
+  val mdataReg2  = dut.getMasterRegisterMap2.getAddressOfRegister("mdata").get
+  val mstatusReg2 = dut.getMasterRegisterMap2.getAddressOfRegister("mstatus").get
+
+  val master1Data = BigInt(params.dataWidth, Random)
+  val master2Data = BigInt(params.dataWidth, Random)
+  val maddrW = (slaveAddr << 1) & 0xFF 
+
+  // Fork to write maddr, mbaud, and mctrl registers concurrently for both masters
+  fork {
+    // Master 1 configuration
+    writeAPB(dut.io.masterApb1, maddrReg1.U, maddrW.U)   // 0x50 + R/W=0
+    writeAPB(dut.io.masterApb1, mbaudReg1.U, 2.U)      // small BAUD => ~7 cycles per half period
+    writeAPB(dut.io.masterApb1, mctrlReg1.U, 1.U)     // enable master
+  }.fork {
+    // Master 2 configuration
+    writeAPB(dut.io.masterApb2, maddrReg2.U, maddrW.U)   // 0x50 + R/W=0
+    writeAPB(dut.io.masterApb2, mbaudReg2.U, 2.U)      // small BAUD => ~7 cycles per half period
+    writeAPB(dut.io.masterApb2, mctrlReg2.U, 1.U)     // enable master
+  }.join()  // Wait for both forks to complete
+
+  // Step the clock to allow the writes to take effect
+  dut.clock.step(100)
+
+  // Fork to write mdata registers concurrently for both masters
+  fork {
+    // Master 1 data write
+    writeAPB(dut.io.masterApb1, mdataReg1.U, master1Data.U)
+  }.fork {
+    // Master 2 data write
+    writeAPB(dut.io.masterApb2, mdataReg2.U, master2Data.U)
+  }.join()  // Wait for both forks to complete
+
+  // Step the clock to allow the data writes to take effect
+  dut.clock.step(1)
+  var master1Status = 0
+  var master2Status = 0
+  // --- Wait for rising edges on SCL ---
+  // Estimate the number of rising edges needed for the transaction.
+  // For one byte write: address (8 bits) + ACK, data (8 bits) + ACK, plus STOP.
+  // Waiting for ~30 rising edges should be more than sufficient.
+  val edgesToWait = 60
+    var edge = 0
+    while (edge < edgesToWait && waitForRisingEdgeOnMasterSCL(dut, maxCycles = 100)) {
+      println(s"[DEBUG] Completed rising edge number $edge")
+      edge += 1
+      if (edge == 14){
+          // --- Check arbitration results ---
+        master1Status = readAPB(dut.io.masterApb1, mstatusReg1.U).toInt
+        master2Status = readAPB(dut.io.masterApb2, mstatusReg2.U).toInt
+
+        println(s"[DEBUG] Master 1 status = 0x${master1Status.toHexString}")
+        println(s"[DEBUG] Master 2 status = 0x${master2Status.toHexString}")
+      }
+    }
+
+
+  // --- Read the slave's sdata register ---
+  val gotData = readAPB(dut.io.slaveApb, sdataReg.U).toInt
+  println(s"[DEBUG] Final: Slave sdata read = 0x${gotData.toHexString}")
+
+  // Check which master lost arbitration
+  if ((master1Status & 0x4) != 0) { //If arb is lost
+    println("[DEBUG] Master 1 lost arbitration")
+    assert((master1Status & 0x3) == 2, "Master 1 status(1:0) should be 10 (Busy Bus)")
+  } else if ((master2Status & 0x4) != 0) {
+    println("[DEBUG] Master 2 lost arbitration")
+    assert((master2Status & 0x3) == 2, "Master 2 status(1:0) should be 10 (Busy Bus)")
+  } else {
+    assert(false, "Neither master lost arbitration, which is unexpected")
+  }
+
+  // Check which master won arbitration and verify the data
+  if ((master1Status & 0x4) == 0) {
+    println("[DEBUG] Master 1 won arbitration")
+    assert(gotData == master1Data.toInt, f"Slave read 0x$gotData%02X, expected 0x$master1Data%02X")
+  } else if ((master2Status & 0x4) == 0) {
+    println("[DEBUG] Master 2 won arbitration")
+    assert(gotData == master2Data.toInt, f"Slave read 0x$gotData%02X, expected 0x$master2Data%02X")
+  }
+
+  val slaveAddr2 = BigInt(7, Random)
+  writeAPB(dut.io.slaveApb, sctrlReg.U, 1.U)
+  writeAPB(dut.io.slaveApb, saddrReg.U, slaveAddr2.U)
+  val maddrW2 = (slaveAddr2 << 1) & 0xFF 
+  val masterData2 = BigInt(params.dataWidth, Random)
+  // Write the address (0xA0) and then start the master.
+  writeAPB(dut.io.masterApb1, maddrReg1.U, maddrW2.U)
+  writeAPB(dut.io.masterApb1, mbaudReg1.U, 32.U)
+  writeAPB(dut.io.masterApb1, mctrlReg1.U, 1.U)
+  // Let the transaction begin; wait a short time.
+  dut.clock.step(100)
+  // Write the data to be transmitted.
+  writeAPB(dut.io.masterApb1, mdataReg1.U, masterData2.U)
+  dut.clock.step(1)
+  
+  // Wait for enough rising edges for the transaction to complete.
+  var count = 0
+  while (!dut.io.interrupt.peek().litToBoolean && count < 10000) {
+    dut.clock.step(1)
+    count += 1
+  }
+
+  // Add assertion after loop
+  assert(count < 10000, "Timeout: Interrupt did not trigger within 1000 cycles")
+
+  // Read the slave's data register
+  val slaveReceived2 = readAPB(dut.io.slaveApb, sdataReg.U).toInt
+  println(s"[DEBUG] Phase 2: Slave received = 0x${slaveReceived2.toHexString}, expected = 0x${masterData2.toString}")
+  assert(slaveReceived2 == masterData2.toInt,
+    f"Phase 2 failed: Slave received 0x$slaveReceived2%02X, expected 0x$masterData2%02X")
+
+
+}
+  
+
 }
