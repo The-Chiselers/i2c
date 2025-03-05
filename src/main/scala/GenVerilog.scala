@@ -26,6 +26,7 @@ object Main extends App {
     dataWidth = 8,
     addrWidth = 8,
     regWidth = 8,
+    wordWidth = 8,
     clkFreq = 50
   )
   // if output dir does not exist, make path

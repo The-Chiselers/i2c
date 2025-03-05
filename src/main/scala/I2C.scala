@@ -92,7 +92,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
   val addrDecodeParams = registerMap.getAddrDecodeParams
   val addrDecode       = Module(new AddrDecode(addrDecodeParams))
   addrDecode.io.addrRaw      := io.apb.PADDR
-//  addrDecode.io.addrOffset := 0.U
+//  addrDecode.io.addrOffset := 0.Uw
   addrDecode.io.en         := true.B
   addrDecode.io.selInput   := true.B
   // ------------------------------------------------------------------------
@@ -649,7 +649,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
   }
 
   when(stateReg === STATE_IDLE && interruptAfterStop) {
-    when(past(stateReg) === STATE_IDLE) {
+    when(RegNext(stateReg) === STATE_IDLE) {
       interruptAfterStop := false.B  // Clear after one full cycle in IDLE
     }
   }
