@@ -57,7 +57,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
   // ------------------------------------------------------------------------
   // 1) Register Map
   // ------------------------------------------------------------------------
-  val registerMap = new RegisterMap(p.dataWidth, p.addrWidth)
+  val registerMap = new RegisterMap(p.dataWidth, p.addrWidth, Some(p.wordWidth))
   // Internal signals
   val maddrFlag    = RegInit(false.B)
   val i2cShift     = RegInit(0.U(p.dataWidth.W)) // shared shift register
@@ -91,7 +91,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
   // ------------------------------------------------------------------------
   val addrDecodeParams = registerMap.getAddrDecodeParams
   val addrDecode       = Module(new AddrDecode(addrDecodeParams))
-  addrDecode.io.addr      := io.apb.PADDR
+  addrDecode.io.addrRaw      := io.apb.PADDR
 //  addrDecode.io.addrOffset := 0.U
   addrDecode.io.en         := true.B
   addrDecode.io.selInput   := true.B
