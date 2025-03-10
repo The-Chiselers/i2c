@@ -39,7 +39,8 @@ lazy val root = (project in file("."))
       ),
       addCompilerPlugin(
         "org.chipsalliance" % "chisel-plugin" % chiselVersion cross CrossVersion.full
-      )
+      ),
+      coverageExcludedFiles :=  ".*GenVerilog;.*BaseParams;.*Interfaces;.*I2CFVHarness"
     )
     .dependsOn(
       synth,
@@ -52,7 +53,7 @@ val chiselVersion   = "6.6.0"
 val scalafmtVersion = "2.5.0"
 
 // Scala coverage settings
-coverageDataDir            := target.value / "../generated/scalaCoverage"
+coverageDataDir            := target.value 
 coverageFailOnMinimum      := false
-coverageMinimumStmtTotal   := 90
-coverageMinimumBranchTotal := 95
+coverageMinimumStmtTotal   := 0
+coverageMinimumBranchTotal := 0

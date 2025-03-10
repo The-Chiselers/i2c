@@ -44,7 +44,7 @@ clean:
 	@echo Cleaning
 	rm -rf generated target *anno.json ./*.rpt doc/*.rpt syn/*.rpt syn.log out test_run_dir
 	rm -rf project/build.properties project/project project/target
-	
+	rm -rf ~/.sbt ~/.ivy2	
 	# filter all files with bad extensions:
 	find . -type f -name "*.aux" -delete
 	find . -type f -name "*.toc" -delete

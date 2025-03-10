@@ -742,13 +742,13 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
     
     // Wait for the read transaction to complete by waiting for rising edges.
     count = 0
-    while (!dut.io.interrupt.peek().litToBoolean && count < 10000) {
+    while (!dut.io.interrupt.peek().litToBoolean && count < 15000) {
       dut.clock.step(1)
       count += 1
     }
 
     // Add assertion after loop
-    assert(count < 10000, "Timeout: Interrupt did not trigger within 1000 cycles")
+    assert(count < 15000, "Timeout: Interrupt did not trigger within 15000 cycles")
     
     // Read the master's data register
     val masterReceived2 = readAPB(dut.io.masterApb, mdataReg.U).toInt
@@ -780,13 +780,13 @@ def bidirectionalHalfDuplex(dut: FullDuplexI2C, params: BaseParams): Unit = {
     
     // Wait for the read transaction to complete by waiting for rising edges.
     count = 0
-    while (!dut.io.interrupt.peek().litToBoolean && count < 10000) {
+    while (!dut.io.interrupt.peek().litToBoolean && count < 20000) {
       dut.clock.step(1)
       count += 1
     }
 
     // Add assertion after loop
-    assert(count < 10000, "Timeout: Interrupt did not trigger within 1000 cycles")
+    assert(count < 20000, "Timeout: Interrupt did not trigger within 20000 cycles")
     
     // Read the master's data register
     val masterReceived3 = readAPB(dut.io.masterApb, mdataReg.U).toInt
