@@ -1,4 +1,3 @@
-
 package tech.rocksavage.chiselware.I2C
 import chisel3._
 import chisel3.util._
@@ -301,9 +300,9 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
     // MASTERADDRESS
     // -------------------------------------------------------
     is(STATE_MASTERADDRESS) {
-      prevClk := io.master.sclOut
+      prevClk := io.master.sclIn
       io.master.sdaOut := addrShift(7)
-      when(~prevClk & io.master.sclOut) {
+      when(~prevClk & io.master.sclIn) {
         when(frameCounter < 7.U) {
           addrShift   := addrShift(6, 0) ## 0.U
           frameCounter := frameCounter + 1.U
@@ -353,7 +352,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
             stateReg := STATE_SENDACKSLAVE
           } .otherwise {
             detectStopConditionSlave()
-            stateReg := STATE_WAITSTOP
+            stateReg := STATE_IDLE
           }
         }
       }
@@ -477,14 +476,14 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
     // SENDACKMASTER
     // -------------------------------------------------------
     is(STATE_SENDACKMASTER) {
-      prevClk := io.master.sclOut
+      prevClk := io.master.sclIn
       frameCounter := 0.U
       when(mctrl(4) === 1.U) { // Hold SCL Low until SW user unasserts mctrl(5) meaning they are ready
         io.master.sclOut := 0.U
         mstatus := mstatus | (1.U(7.W) << 5)
         stateReg := STATE_SENDACKMASTER
       }.otherwise {
-        when(~prevClk & io.master.sclOut) {
+        when(~prevClk & io.master.sclIn) {
           mstatus := mstatus | (1.U << 7.U) //Set master read complete interrupt to register
           when(mctrl(1) === 0.U) {
             io.master.sdaOut := 0.U
@@ -510,9 +509,9 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
     // -------------------------------------------------------
     is(STATE_MASTERWRITE) {
       io.master.sdaOut := i2cShift(p.dataWidth - 1)
-      prevClk := io.master.sclOut
+      prevClk := io.master.sclIn
       mstatus := mstatus & ~(1.U << 6)  //Clear WIF Flag
-      when(~prevClk & io.master.sclOut) {
+      when(~prevClk & io.master.sclIn) {
         when(frameCounter < 8.U) {
           i2cShift    := i2cShift(p.dataWidth - 2, 0) ## 0.U
           frameCounter := frameCounter + 1.U
@@ -554,8 +553,8 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
     // MASTERREAD
     // -------------------------------------------------------
     is(STATE_MASTERREAD) {
-      prevClk := io.master.sclOut
-      when(~prevClk & io.master.sclOut) {
+      prevClk := io.master.sclIn
+      when(~prevClk & io.master.sclIn) {
         when(frameCounter < 8.U) {
           i2cShift    := i2cShift(p.dataWidth - 2, 0) ## io.master.sdaIn
           frameCounter := frameCounter + 1.U
