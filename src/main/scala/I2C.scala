@@ -239,7 +239,7 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
   val rwBit   = RegInit(0.U(1.W))
   val prevSda = RegInit(0.U(1.W))
   val prevClk = RegInit(true.B)
-  val delay = RegInit(false.B)
+  val delayCounter = RegInit(0.U(4.W))
   //Master Bus FSM
   val prevSdaBus = RegInit(0.U(1.W))
   val prevClkBus = RegInit(true.B)
@@ -280,11 +280,11 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
       // MASTER side: When enabled and address written, drive SDA low and prepare to send address.
       when(mctrl(0) === 1.U && maddrFlag && (busStateReg === BusState.OWNER)) {
         when(sendStartCondition()) {
-          delay := true.B
+          delayCounter := delayCounter + 1.U
         }
       }
-      when(delay){
-        delay := false.B
+      when(delayCounter === 1.U){
+        delayCounter := 0.U
         stateReg  := STATE_MASTERADDRESS  // Transition to MASTERADDRESS state
       }
       
@@ -367,7 +367,9 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
       frameCounter := 0.U
       when(~prevClk & io.master.sclIn) {
         //prevSda := io.master.sdaIn
+        delayCounter := delayCounter + 1.U
         when(/*(prevSda === 1.U) && */ (io.master.sdaIn === 0.U)) {
+          delayCounter := 0.U
           when(rwBit === 0.U) {
             /* 
             *  Master Case 1: Address Packet Transmit Complete - Direction Bit Set to Write
@@ -406,9 +408,14 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
             *  Then, issue a STOP condition to end the transaction
             */
             //io.master.sdaOut := 0.U
-            mstatus := mstatus | ((1.U(7.W) << 6) | (1.U(7.W) << 4))
-            sclReg := true.B
-            stateReg := STATE_SENDSTOP
+            when(delayCounter === 4.U) {
+              delayCounter := 0.U
+              mstatus := mstatus | ((1.U(7.W) << 6) | (1.U(7.W) << 4))
+              sclReg := true.B
+              stateReg := STATE_SENDSTOP
+            }.otherwise {
+              stateReg := STATE_WAITACKMASTER
+            }
         }
       }
     }
@@ -421,7 +428,9 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
       frameCounter := 0.U
       when(~prevClk & io.slave.sclIn) {
         //prevSda := io.slave.sdaIn
+        delayCounter := delayCounter + 1.U
         when(/*(prevSda === 1.U) && */(io.slave.sdaIn === 0.U)) {
+          delayCounter := 0.U
           sstatus := (sstatus | (1.U << 7.U)) & ~(1.U(7.W) << 4)
           when(shiftCounter === p.dataWidth.U) {
             shiftCounter := 0.U
@@ -432,9 +441,14 @@ class I2C(p: BaseParams, formal: Boolean = false) extends Module {
           }
         } .otherwise {
           // No ACK => assume NACK => go to WAITSTOP
-          sstatus := sstatus | (1.U(7.W) << 4)
-          detectStopConditionSlave()
-          stateReg := STATE_WAITSTOP
+          when (delayCounter === 4.U) {
+            delayCounter := 0.U
+            sstatus := sstatus | (1.U(7.W) << 4)
+            detectStopConditionSlave()
+            stateReg := STATE_WAITSTOP
+          }.otherwise {
+            stateReg := STATE_WAITACKSLAVE
+          }
         }
       }
     }
