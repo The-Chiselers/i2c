@@ -11,7 +11,8 @@ class I2cConfig extends ModuleConfig {
         addrWidth = 8,
         regWidth = 8,
         wordWidth = 8,
-        clkFreq = 50
+        clkFreq = 50,
+        coverage = false
       ),
       false
     )
