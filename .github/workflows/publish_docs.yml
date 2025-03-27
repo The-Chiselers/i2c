@@ -2,8 +2,8 @@ name: "Generate Documentation and Publish Release"
 
 on:
   workflow_run:
-    workflows: ["Synthesis and Results"]
-    types: [completed]
+    workflows: [ "Synthesis and Results" ]
+    types: [ completed ]
 
 jobs:
   docs-and-release:
@@ -50,32 +50,14 @@ jobs:
 
       - name: Run Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v2
-        
+
       - name: Install LaTeX
         run: |
           sudo apt-get update
           sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-latex-extra
 
-      - name: Remove old table & use \input
-        run: |
-          SYN_TEX="doc/user-guide/syn.tex"
-          SNIPPET_NOEXT="synthResultsSnippet"  # We'll do \include{../../out/results/synthResultsSnippet} (no .tex extension)
-          SNIPPET_PATH="out/results/${SNIPPET_NOEXT}.tex"
-
-          if [ -f "$SYN_TEX" ] && [ -f "$SNIPPET_PATH" ]; then
-            echo "Backing up $SYN_TEX"
-            cp "$SYN_TEX" "$SYN_TEX.bak"
-
-            echo "Removing old static table..."
-            sed -i '/\\begin{longtable}/,/\\end{longtable}/d' "$SYN_TEX"
-
-            echo "Inserting a \\input statement in $SYN_TEX"
-            # Double backslash so that we end up with a single '\' in the final .tex
-            sed -i '/\\rowcolors{2}{gray!30}{gray!10}/a \\\input{../../out/results/synthResultsSnippet}' doc/user-guide/syn.tex
-
-          else
-            echo "Missing $SYN_TEX or $SNIPPET_PATH; skipping injection."
-          fi
+      - name: Get document build fragments
+        run: nix develop --command make doc_frags
 
       - name: Build Documentation
         run: |
