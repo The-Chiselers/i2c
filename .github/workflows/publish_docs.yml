@@ -79,7 +79,7 @@ jobs:
 
       - name: Build Documentation
         run: |
-          nix develop --command make docs
+          make docs
 
       - name: Collect artifacts for release
         run: |
