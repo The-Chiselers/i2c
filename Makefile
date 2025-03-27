@@ -65,6 +65,11 @@ docs:
 	mkdir -p $(PWD)/out/doc
 	cd $(PWD)/doc/user-guide && pdflatex -output-directory=$(PWD)/out/doc $(PWD)/doc/user-guide/I2C.tex | tee -a $(PWD)/out/doc/doc.rpt
 
+doc_frags:
+	@echo Generating doc fragments
+	@$(SBT) "runMain tech.rocksavage.Main docs --module tech.rocksavage.chiselware.uart.hw.Uart --config-class tech.rocksavage.chiselware.uart.UartConfig --techlib synth/stdcells.lib --clock-period 5.0"
+
+
 # Run the tests
 test: validate
 	@echo Running tests

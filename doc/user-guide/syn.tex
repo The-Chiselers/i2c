@@ -3,54 +3,7 @@
 \subsection{Area}
 The I2C module has been synthesized in various configurations. The following results are representative of what users should expect in their technology.
 
-\renewcommand*{\arraystretch}{1.4}
-\begingroup
-\small
-\begin{longtable}[H]{
-    | p{0.20\textwidth}
-    | p{0.15\textwidth}
-    | p{0.30\textwidth}
-    | p{0.15\textwidth} |
-  }
-  \hline
-  \rowcolor{black}
-  \textcolor{white}{\textbf{Config Name}} &
-  \textcolor{white}{\textbf{Data Width}} &
-  \textcolor{white}{\textbf{Features Enabled}} &
-  \textcolor{white}{\textbf{Gates}} \\ 
-  \hline \hline
-  \endfirsthead
-
-  \rowcolor{black}
-  \textcolor{white}{\textbf{Config Name}} &
-  \textcolor{white}{\textbf{Data Width}} &
-  \textcolor{white}{\textbf{Features Enabled}} &
-  \textcolor{white}{\textbf{Gates}} \\ 
-  \hline \hline
-  \endhead
-
-  \hline
-  \endfoot
-
-basic\_8 &
-8 &
-Master + Slave, no formal verification &
-2,500 \\ \hline
-
-standard\_16 &
-16 &
-Master + Slave, formal verification enabled &
-3,200 \\ \hline
-
-full\_32 &
-32 &
-Master + Slave, formal verification, all features &
-4,100 \\ \hline
-
-\caption{Synthesis Area Results}
-\label{table:area}
-\end{longtable}
-\endgroup
+\input{../../out/doc/synth_sta.tex}
 
 Note that enabling formal verification adds minimal overhead to the design but provides significant quality assurance benefits.
 
@@ -58,67 +11,6 @@ Note that enabling formal verification adds minimal overhead to the design but p
 An \texttt{.sdc} file is generated to provide synthesis and static timing analysis tools guidance for synthesis.
 
 The \texttt{I2C.sdc} file is emitted and found in the \texttt{./syn} directory.
-
-\subsection{Timing}
-The following timing was extracted using the generated .sdc files with a standard cell library.
-
-\renewcommand*{\arraystretch}{1.4}
-\begin{longtable}[H]{
-    | p{0.20\textwidth}
-    | p{0.08\textwidth}
-    | p{0.12\textwidth}
-    | p{0.13\textwidth}
-    | p{0.15\textwidth}
-    | p{0.15\textwidth} |
-  }
-  \hline
-  \rowcolor{black}
-  \textcolor{white}{\textbf{Config}} &
-  \textcolor{white}{\textbf{Period}} &
-  \textcolor{white}{\textbf{Duty Cycle}} &
-  \textcolor{white}{\textbf{Input Delay}} &
-  \textcolor{white}{\textbf{Output Delay}} &
-  \textcolor{white}{\textbf{Slack}} \\ 
-  \hline \hline
-  \endfirsthead
-
-  \rowcolor{black}
-  \textcolor{white}{\textbf{Config}} &
-  \textcolor{white}{\textbf{Period}} &
-  \textcolor{white}{\textbf{Duty Cycle}} &
-  \textcolor{white}{\textbf{Input Delay}} &
-  \textcolor{white}{\textbf{Output Delay}} &
-  \textcolor{white}{\textbf{Slack}} \\ 
-  \hline \hline
-  \endhead
-
-  \hline
-  \endfoot
-
-basic\_8 &
-10ns &
-50\% &
-2ns &
-2ns &
-2.9ns (MET) \\ \hline
-
-standard\_16 &
-10ns &
-50\% &
-2ns &
-2ns &
-2.7ns (MET) \\ \hline
-
-full\_32 &
-10ns &
-50\% &
-2ns &
-2ns &
-2.6ns (MET) \\ \hline
-
-\caption{Static Timing Analysis Results}
-\label{table:timing}
-\end{longtable}
 
 \subsection{Multicycle Paths}
 There are no multicycle paths in the current design. The I2C module is fully synchronous with respect to the system clock.
