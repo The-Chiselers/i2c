@@ -47,7 +47,7 @@ jobs:
           echo "[]" > out/results/synth_results.json
           echo "% Auto-generated table rows" > out/results/synth_table_rows.tex
 
-          CONFIG_DIRS=$(find out/synth -type d | sort)
+          CONFIG_DIRS=$(find out/synth -type d -exec test -e '{}/gates.txt' \; -print | sort)
           if [ -z "$CONFIG_DIRS" ]; then
             echo "Error: No synthesis results found in out/synth"
             exit 1
