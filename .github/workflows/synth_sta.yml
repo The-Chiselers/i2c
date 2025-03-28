@@ -9,6 +9,8 @@ on:
 jobs:
   synth-and-publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: ${{ !contains(github.event.head_commit.message, '[gh-bot]') }}
 
     steps:
@@ -25,43 +27,34 @@ jobs:
       - name: Run Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v2
 
-      - name: Run Synthesis
+      - name: Install LaTeX
         run: |
-          echo "Running Synthesis..."
-          nix develop --command make synth
-          echo "Synthesis complete."
+          sudo apt-get update
+          sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-latex-extra
 
-      - name: Run Static Timing Analysis
+      - name: Get document build fragments
+        run: nix develop --command make doc_frags
+
+      - name: Build Documentation
         run: |
-          echo "Running STA..."
-          nix develop --command make sta
-          echo "STA complete."
+          make docs
 
-      - name: Prepare output directory
+      - name: Collect artifacts for release
         run: |
-          mkdir -p out/results
-          echo "Created out/results directory."
+          tar -czvf release_artifacts.tar.gz out/
 
-      - name: Generate Verilog
-        run: |
-          echo "Generating Verilog..."
-          nix develop --command make verilog
-          echo "Verilog generation complete."
-
-      - name: Prepare artifacts folder
-        run: |
-          mkdir -p artifacts
-          cp -r out/results artifacts/
-          cp -r out/verilog artifacts/
-          # Copy netlists from out/synth
-          find out/synth -name "*.v" -exec cp {} artifacts/ \;
-          # Copy any verilog from generated/ if needed
-          if [ -d "generated" ]; then
-            find generated -name "*.v" -exec cp {} artifacts/ \;
-          fi
-
-      - name: Upload synthesis results
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
         with:
-          name: synthesis-results
-          path: artifacts
+          files: |
+            release_artifacts.tar.gz
+            out/doc/*.pdf
+            # release_artifacts/verilog/*.v
+            # release_artifacts/*.json
+          # release_artifacts/*.tex
+          tag_name: v${{ github.run_number }}
+          name: "Release ${{ github.run_number }}"
+          draft: false
+          prerelease: false
+
