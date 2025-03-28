@@ -38,6 +38,7 @@ jobs:
       - name: Build Documentation
         run: |
           make docs
+          make docs
 
       - name: Collect artifacts for release
         run: |
