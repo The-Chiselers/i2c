@@ -67,7 +67,7 @@ docs:
 
 doc_frags:
 	@echo Generating doc fragments
-	@$(SBT) "runMain tech.rocksavage.Main docs --module tech.rocksavage.chiselware.uart.hw.Uart --config-class tech.rocksavage.chiselware.uart.UartConfig --techlib synth/stdcells.lib --clock-period 5.0"
+	@$(SBT) "runMain tech.rocksavage.Main docs --module tech.rocksavage.chiselware.I2C.I2C --techlib synth/stdcells.lib --config-class tech.rocksavage.chiselware.I2C.I2cConfig --clock-period 5.0"
 
 
 # Run the tests
