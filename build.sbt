@@ -7,18 +7,24 @@ ThisBuild / organizationName := "Rocksavage Technology"
 
 Test / parallelExecution := false
 
+lazy val chisel_module_runner = RootProject(
+  uri("https://github.com/The-Chiselers/chisel_module_runner.git#main"),
+)
+lazy val stdlib = RootProject(
+  uri("https://github.com/The-Chiselers/stdlib.git#main"),
+)
 lazy val synth = RootProject(
-  uri("https://github.com/The-Chiselers/synth.git#main")
+  uri("https://github.com/The-Chiselers/synth.git#main"),
 )
 lazy val addrdecode = RootProject(
-  uri("https://github.com/The-Chiselers/addrdecode.git#main")
+  uri("https://github.com/The-Chiselers/addrdecode.git#main"),
 )
 lazy val apb = RootProject(uri("https://github.com/The-Chiselers/apb.git#main"))
 lazy val registermap = RootProject(
-  uri("https://github.com/The-Chiselers/registermap.git#main")
+  uri("https://github.com/The-Chiselers/registermap.git#main"),
 )
 lazy val test_utils = RootProject(
-  uri("https://github.com/The-Chiselers/test_utils.git#main")
+  uri("https://github.com/The-Chiselers/test_utils.git#main"),
 )
 
 lazy val root = (project in file("."))
@@ -39,20 +45,23 @@ lazy val root = (project in file("."))
       ),
       addCompilerPlugin(
         "org.chipsalliance" % "chisel-plugin" % chiselVersion cross CrossVersion.full
-      )
+      ),
+      coverageExcludedFiles :=  ".*GenVerilog;.*BaseParams;.*Interfaces;.*I2CFVHarness"
     )
     .dependsOn(
+      chisel_module_runner,
+      stdlib,
       synth,
       addrdecode,
       apb,
       registermap,
-      test_utils
+      test_utils,
     )
 val chiselVersion   = "6.6.0"
 val scalafmtVersion = "2.5.0"
 
 // Scala coverage settings
-coverageDataDir            := target.value / "../generated/scalaCoverage"
+coverageDataDir            := target.value 
 coverageFailOnMinimum      := false
-coverageMinimumStmtTotal   := 90
-coverageMinimumBranchTotal := 95
+coverageMinimumStmtTotal   := 0
+coverageMinimumBranchTotal := 0

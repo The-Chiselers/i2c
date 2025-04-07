@@ -1,48 +1,76 @@
 \section{Simulation}
 
 \subsection{Tests}
-The test bench for the I2C module generates multiple configurations to verify functionality under various conditions:
+The test bench generates a number (default is 2) configurations of the
+I2C that are highly randomized. The user can run the full test-suite  
+with n-configurations using "sbt "test" -DtestName="regression"".
 
-\begin{itemize}
-    \item Master-only tests that verify address and data transmission
-    \item Slave response tests that check address recognition and data handling
-    \item Multi-master tests that verify correct arbitration
-    \item Clock stretching tests to ensure proper SCL handling
-    \item Error condition tests that verify proper error detection and handling
-\end{itemize}
+User can also run individual tests or test groups by substituting "regression" with
+the relevant test name. A description of the tests is below:
 
-The tests include both directed tests with predetermined transactions and randomized tests to explore edge cases and verify robustness.
+\begin{table}[h]
+  \resizebox{\textwidth}{!}{
+  \centering
+  \begin{tabular}{|c|c|c|c|}
+      \hline
+      \rowcolor{gray}  % Dark grey background for header row
+      \textcolor{white}{\textbf{Test Group Name}} & \textcolor{white}{\textbf{Test Name}} & \textcolor{white}{\textbf{Test Type}} & \textcolor{white}{\textbf{Test Description}} \\ \hline
+      clockTests & masterClock & Directed & Generate the correct clock frequency for master mode \\ \hline
+      clockTests & dividerBasic & Directed & Verify the Divider-based I2C clock generation in a simple scenario \\ \hline
+      clockTests & dividerRandom & Directed & Verify random BAUD values do produce toggles \\ \hline 
+      arbitrationTests & arbitrationLost & Directed & Handle multi-master arbitration lost \\ \hline  
+      abitrationTests & multiMasterExtended & Random & Handle multi-master arbitration and extra transmission check \\ \hline
+      repeatedStartTests & repeatedStart & Directed & Perform repeated start with 16 or 32-bit data bus widths \\ \hline
+      transmitTests & masterSlaveTransmission & Directed & Transmit data between master and slave \\ \hline
+      transmitTests & masterWriteSlaveReadFullDuplex & Directed & Perform Master Write->Slave Read in FullDuplexI2C \\ \hline
+      transmitTests & bidirectionalHalfDuplex & Random & Perform bidirectional half-duplex communication, check interrupt flags \\ \hline
+      transmitTests & bidirectionalHalfDuplexTwice & Random & Perform bidirectional half-duplex communication across different baud rates \\ \hline
+      transmitTests & ackVsNackFullDuplex & Directed & Check scenario for ack vs. NACK in FullDuplexI2C \\ \hline
+      transmitTests & stopConditionFullDuplex & Directed & Verify Stop condition logic from Master->Slave in FullDuplexI2C \\ \hline
+      transmitTests & noSlavePresentFullDuplex & Directed & Check Master sees NACK if no slave present in FullDuplexI2C\\ \hline
+      transmitTests & clockStretchingSlave & Random & Check if Master sees NACK and ACK during Clock Stretching \\ \hline
+      transmitTests & clockStretchingMaster & Random & Check if Slave sees NACK and ACK during Clock Stretching \\ \hline
+    \end{tabular}
+  }
+  \caption{Test Suite}
+\end{table}
+
+\subsection{Toggle Coverage}
+Current Score: 92.41\%
+
+All inputs and outputs are checked to insure each toggle at least once. If coverage is enabled
+during core instantiation, a cumulative coverage report of all tests is generated under ./out/cov/verliog.
+
+Exceptions are higher bits of the \emph{PADDR}, \emph{PWDATA}, and \emph{PRDATA}
+which are intended to be static during each simulation. These signals are
+excluded from coverage checks.
 
 \subsection{Code Coverage}
-The test environment measures coverage across all I2C module functions:
+Current Score: 83.58\%
 
-\begin{itemize}
-    \item All state machine transitions
-    \item All register fields
-    \item All control signals and flags
-    \item All error conditions and recovery mechanisms
-\end{itemize}
-
-The coverage metrics ensure that the design is thoroughly verified before synthesis. All inputs and outputs are checked to ensure toggling at least once, with an error thrown if any port fails to toggle.
-
-\subsection{Running Simulation}
-Simulations can be run directly from the command prompt:
-
+Code coverage for all tests can be generated as follows:
 \begin{verbatim}
-$ sbt "test:runMain tech.rocksavage.chiselware.I2C.I2CTest"
+  $ sbt coverage test -DtestName="allTests"
+  $ sbt coverageReport
+  $ python3 -m http.server 8000 --directory target/scoverage-report/
+  View report on local host: http://localhost:8000/index.html
 \end{verbatim}
 
-Or using make:
+\subsection{Running simulation}
+
+Simulations can be run directly from the command prompt as follows:
 
 \begin{verbatim}
-$ make test
+  $ sbt test -DtestName="allTests"
 \end{verbatim}
 
-\subsection{Viewing Waveforms}
-Generated waveforms can be viewed using standard waveform viewers:
+or from make as follows:
 
+\texttt{\$ make test}
+
+\subsection{Viewing the waveforms}
+
+The simulation generates an FST file that can be viewed using a waveform viewer. The command to view the waveform is as follows:
 \begin{verbatim}
-$ gtkwave ./out/test/i2c_waves.vcd
+  $ gtkwave ./out/test/i2c.fst
 \end{verbatim}
-
-The waveforms show all interface signals including master/slave bus operations, internal state transitions, and register access activity.

@@ -1,0 +1,102 @@
+name: "Generate Documentation and Publish Release"
+
+on:
+  workflow_run:
+    workflows: [ "Synthesis and Results" ]
+    types: [ completed ]
+
+jobs:
+  docs-and-release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts from synthesis workflow
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: "Synthesis and Results"
+          workflow_conclusion: success
+          run_id: ${{ github.event.workflow_run.id }}
+
+      - name: Inspect downloaded artifacts
+        run: |
+          echo "Files downloaded from the synthesis workflow:"
+          ls -R
+
+      - name: Move results into out/ folder
+        run: |
+          mkdir -p out/results
+          # The downloaded folder is "synthesis-results" by default
+          cp -r synthesis-results/results out/
+          # Also copy any .v files
+          find synthesis-results -name "*.v" -exec cp {} out/ \;
+
+          echo "Now out/results has..."
+          ls -la out/results
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Run Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+
+      - name: Install LaTeX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-latex-extra
+
+      - name: Get document build fragments
+        run: nix develop --command make doc_frags
+
+      - name: Build Documentation
+        run: |
+          make docs
+
+      - name: Collect artifacts for release
+        run: |
+          mkdir -p release_artifacts
+          
+          # 1) PDFs:
+          if [ -d out/doc ]; then
+            find out/doc -name "*.pdf" -exec cp {} release_artifacts/ \;
+          fi
+
+          # 2) Verilog: place in a verilog/ subfolder
+          mkdir -p release_artifacts/verilog
+          find synthesis-results -name "*.v" -exec cp {} release_artifacts/verilog/ \;
+
+          # 3) JSON / snippet .tex from out/results
+          cp -r out/results/* release_artifacts/ || true
+
+          echo "Listing release_artifacts:"
+          ls -la release_artifacts
+          echo "Listing release_artifacts/verilog:"
+          ls -la release_artifacts/verilog
+
+          tar -czvf release_artifacts.tar.gz release_artifacts/
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release_artifacts.tar.gz
+            release_artifacts/*.pdf
+            # release_artifacts/verilog/*.v
+            # release_artifacts/*.json
+            # release_artifacts/*.tex
+          tag_name: v${{ github.run_number }}
+          name: "Release ${{ github.run_number }}"
+          draft: false
+          prerelease: false

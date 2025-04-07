@@ -1,0 +1,61 @@
+name: "Synthesis and Results"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  synth-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: ${{ !contains(github.event.head_commit.message, '[gh-bot]') }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+
+      - name: Run Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+
+      - name: Install LaTeX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-latex-extra
+
+      - name: Get document build fragments
+        run: nix develop --command make doc_frags
+
+      - name: Build Documentation
+        run: |
+          make docs
+          make docs
+
+      - name: Collect artifacts for release
+        run: |
+          tar -czvf release_artifacts.tar.gz out/
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release_artifacts.tar.gz
+            out/doc/*.pdf
+            # release_artifacts/verilog/*.v
+            # release_artifacts/*.json
+          # release_artifacts/*.tex
+          tag_name: v${{ github.run_number }}
+          name: "Release ${{ github.run_number }}"
+          draft: false
+          prerelease: false
+

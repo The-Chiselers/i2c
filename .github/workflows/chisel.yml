@@ -4,44 +4,31 @@
 # documentation.
 
 name: Chisel CI
- 
+
 on:
   push:
-    branches: [ "main", "nick" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
-
+    branches: ["main"]
 
 permissions:
   contents: read
 
 jobs:
-  generate_verilog:
+  test:
+    if: ${{ !contains(github.event.head_commit.message, '[gh-bot]') }}
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Install Nix
-      uses: cachix/install-nix-action@v27
-      with:
-        nix_path: nixpkgs=channel:nixos-unstable
-        
-    - name: Run Nix Cache
-      uses: DeterminateSystems/magic-nix-cache-action@v2
-      
-    # - name: Source Dev Shell
-    #   run: nix --extra-experimental-features nix-command --extra-experimental-features flakes develop --ignore-environment -c $SHELL
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
 
-    # - name: Install firtool
-    #   run: nix-env -iA nixpkgs.firtool
-      
-    # - name: DEBUG STEP
-    #   run: echo $PATH; which firtool
+      - name: Run Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
 
-     
-    # - uses: nicknovitski/nix-develop@1
-    # - run: echo $PATH
-
-    - name: Run
-      run: nix develop --command sbt run
+      - name: Test
+        run: nix develop --command sbt test
